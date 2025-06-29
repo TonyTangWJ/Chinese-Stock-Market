@@ -1,4 +1,4 @@
--- Combined SQL: View with filtered data for Mainboard stocks with balance sheet data
+-- create target_data view
 
 CREATE OR REPLACE VIEW target_data AS
 SELECT 
