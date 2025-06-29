@@ -1,0 +1,21 @@
+{
+    "sqltools.connections": [
+        {
+            "mysqlOptions": {
+                "authProtocol": "xprotocol",
+                "enableSsl": "Disabled"
+            },
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 33060,
+            "driver": "MySQL",
+            "name": "MySQL",
+            "connectionTimeout": 30,
+            "username": "root",
+            "database": "csm",
+            "password": "19990509twj"
+        }
+    ],
+    "notebook.defaultFormatter": null,
+    "terminal.integrated.defaultProfile.windows": "PowerShell"
+}

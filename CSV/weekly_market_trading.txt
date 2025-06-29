@@ -1,0 +1,11 @@
+Markettype [Market Type] - 1=SSE A share market (excluding STAR Market); 2= SSE B share market; 4= SZSE A share market (excluding ChiNext); 8= SZSE B share market; 16= ChiNext; 32= STAR Market., 64= BSE A share market
+Trdwnt [Trading Week] - Denoted by YYYY-MM
+Ndaytrd [Weekly Number Of Trading Days] - Actual trading days during the week.
+Wnshrtrdtl [Weekly Trading Volume] - Number of shares traded within the week.
+Wnvaltrdtl [Weekly Trading Turnover] - Value of shares traded within the week. A Share: CNY/ share, SSE B share: USD / share, SZSE B Share: HKD / share.
+Wretmdeq [Weekly Market Return Without Cash Dividend Reinvested (Equal-Weighted)] - Please refer to “How Returns Are Calculated”
+Wretmdos [Weekly Market Return Without Cash Dividend Reinvested (Current-Value-Weighted)] - Please refer to “How Returns Are Calculated”
+Wretmdtl [Weekly Market Return Without Cash Dividend Reinvested (Total-Value-Weighted)] - Please refer to “How Returns Are Calculated”
+Wnstkcal [Number Of Companies Included In Calculation Of Weekly Market Returns] - Number of companies that conducted trading both in prior week and current week.
+Wmvosd [Weekly Negotiable Market Capitalization] - The total negotiable market capitalization of all individual shares in the week (Number of negotiable shares * weekly closing price). A Share: CNY 1,000, SSE B share: USD 1,000, SZSE B Share: HKD 1,000
+Wmvttl [Weekly Market Capitalization] - The total market capitalization of all individual shares in the week (Number of shares issued * weekly closing price). A Share: CNY 1,000, SSE B share: USD 1,000, SZSE B Share: HKD 1,000
