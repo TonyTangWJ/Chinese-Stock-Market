@@ -1,6 +1,6 @@
 import tushare as ts
 import pandas as pd
-from sql import sql
+from database.sql import sql
 from tqdm.auto import tqdm
 import warnings
 import time
