@@ -1,0 +1,1 @@
+select ts_code, assets_to_eqt from repo_financial_indicator LIMIT 1000;
