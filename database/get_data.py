@@ -20,6 +20,8 @@ class get_data:
     # get the stock list and then store it into the database
     # data source: tushare, choice
     # without stocks listed in STAR market and Beijing Stock Exchange
+    # the stocks listed before 2023-01-01 and delisted before 2016-02-01 are included
+    # data research period: 2015.01.01-2024.12.31
     def get_stock_list(self):
         data_L = self.pro.stock_basic(list_status = 'L',fields='ts_code,market,area,list_date,delist_date,act_ent_type')
         data_D = self.pro.stock_basic(list_status = 'D',fields='ts_code,market,area,list_date,delist_date,act_ent_type')
@@ -339,3 +341,29 @@ class get_data:
             data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
             self.sql.insert_data(data, "stock_dividend")
         return data
+    
+    # get stock top_10 stock holders and then store it into the database
+    # data source: tushare
+    def get_stock_top10_holders(self):
+        stock_list = self.sql.return_data('select ts_code from stock_list')["ts_code"].tolist()
+        for ts_code in tqdm(stock_list, desc="Collecting stock top 10 holders data", position=0, colour="#FA6780"):
+            fields = (
+                "ts_code,ann_date,end_date,holder_name,hold_amount,hold_ratio,hold_float_ratio,hold_change,holder_type"
+            )
+            data = self.pro.top10_holders(ts_code=ts_code, fields=fields)
+            data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
+            self.sql.insert_data(data, "stock_top10_holders")
+        return
+
+    # get stock top_10 common stock holders and then store it into the database
+    # data source: tushare
+    def get_stock_top10_common_holders(self):
+        stock_list = self.sql.return_data('select ts_code from stock_list')["ts_code"].tolist()
+        for ts_code in tqdm(stock_list, desc="Collecting stock top 10 common holders data", position=0, colour="#FA6780"):
+            fields = (
+                "ts_code,ann_date,end_date,holder_name,hold_amount,hold_ratio,hold_float_ratio,hold_change,holder_type"
+            )
+            data = self.pro.top10_floatholders(ts_code=ts_code, fields=fields)
+            data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
+            self.sql.insert_data(data, "stock_top10_common_holders")
+        return

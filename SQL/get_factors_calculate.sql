@@ -1,0 +1,1 @@
+-- operating revenue divided by the average of current assets
