@@ -1,0 +1,22 @@
+CREATE TABLE stock_daily_indicator (
+    ts_code VARCHAR(20),
+    trade_date VARCHAR(20),
+    close DECIMAL(20,2),
+    turnover_rate DECIMAL(20,4),
+    turnover_rate_f DECIMAL(20,4),
+    volume_ratio DECIMAL(20,2),
+    pe DECIMAL(20,4),
+    pe_ttm DECIMAL(20,4),
+    pb DECIMAL(20,4),
+    ps DECIMAL(20,4),
+    ps_ttm DECIMAL(20,4),
+    dv_ratio DECIMAL(20,4),
+    dv_ttm DECIMAL(20,4),
+    total_share DECIMAL(20,4),
+    float_share DECIMAL(20,4),
+    free_share DECIMAL(20,4),
+    total_mv DECIMAL(20,4),
+    circ_mv DECIMAL(20,4),
+    PRIMARY KEY (ts_code, trade_date),
+    Foreign key (ts_code) REFERENCES stock_list(ts_code)
+);

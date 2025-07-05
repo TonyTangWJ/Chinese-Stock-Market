@@ -310,3 +310,32 @@ class get_data:
 
         self.sql.insert_data(data, 'market_weekly_trading_data')
         return
+    
+    # get stock daily indicator data and then store it into the database
+    # data source: tushare
+    def get_stock_daily_indicator(self):
+        stock_list = self.sql.return_data('select ts_code from stock_list')['ts_code'].tolist()
+        for ts_code in tqdm(stock_list, desc="Collecting stock daily indicator data", position = 0, colour='#FA6780'):
+            data = self.pro.daily_basic(ts_code=ts_code, 
+                                        start_date=self.start_date, 
+                                        end_date=self.end_date,
+                                        fields='ts_code,trade_date,close,turnover_rate,turnover_rate_f,volume_ratio,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm,total_share,float_share,free_share,total_mv,circ_mv')
+            data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
+            self.sql.insert_data(data,'stock_daily_indicator')
+        return
+    
+    # get stock dividend data and then store it into the database
+    # data source: tushare
+    def get_stock_dividend(self):
+        stock_list = self.sql.return_data('select ts_code from stock_list')["ts_code"].tolist()
+        for ts_code in tqdm(stock_list, desc="Collecting stock dividend data", position=0, colour="#FA6780"):
+            fields = (
+                "ts_code,imp_ann_date,end_date,div_proc,stk_div,stk_bo_rate,"
+                "stk_co_rate,cash_div,cash_div_tax,base_share"
+            )
+            data = self.pro.dividend(ts_code=ts_code, fields=fields)
+            data.dropna(subset=['imp_ann_date', 'end_date'], inplace=True)
+            data.rename(columns={'imp_ann_date': 'ann_date'}, inplace = True)
+            data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
+            self.sql.insert_data(data, "stock_dividend")
+        return data
