@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS factor_financial_indicator AS
+CREATE TABLE IF NOT EXISTS factor_repo_financial_indicator AS
 SELECT 
     ts_code,
     ann_date,

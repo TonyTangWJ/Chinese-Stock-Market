@@ -1,6 +1,6 @@
 -- get selected ts_code
 
-create view ts_code as 
+create view view_ts_code as 
     select DISTINCT ts_code
     from stock_list
     where market = 'MainBoard'
