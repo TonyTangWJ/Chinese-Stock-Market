@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS factor_repo_financial_indicator AS
+CREATE TABLE factor_repo_financial_indicator AS
 SELECT 
     ts_code,
     ann_date,
@@ -14,7 +14,8 @@ SELECT
     ebitda_to_debt,
     ebit_of_gr,
     ebit_to_interest,
-    eps,
+    q_eps,
+    diluted2_eps,
     expense_of_sales,
     debt_to_eqt,
     grossprofit_margin,
@@ -38,5 +39,5 @@ SELECT
     op_yoy,
     netprofit_yoy
 FROM repo_financial_indicator
-where ts_code IN (SELECT ts_code FROM ts_code);
+WHERE ts_code IN (SELECT ts_code FROM ts_code);
 

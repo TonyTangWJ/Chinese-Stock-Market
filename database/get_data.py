@@ -367,3 +367,25 @@ class get_data:
             data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
             self.sql.insert_data(data, "stock_top10_common_holders")
         return
+    
+    # calculate the pcf
+    # data source: tushare
+    def get_stock_pcf(self):
+        cashflow_data = sql().return_data('select ts_code, f_ann_date, end_date, n_cashflow_act from repo_cashflow_statement')
+        total_mv = sql().return_data('select ts_code, trade_date, total_mv from stock_daily_indicator')
+        total_mv['t_trade_date'] = pd.to_datetime(total_mv['trade_date']).dt.date
+        total_mv['quarter'] = pd.to_datetime(total_mv['t_trade_date']).dt.to_period('Q')
+        cashflow_data['end_date'] = pd.to_datetime(cashflow_data['end_date'].astype(str)).dt.date
+        cashflow_data['quarter'] = pd.to_datetime(cashflow_data['end_date']).dt.to_period('Q')
+        cashflow_data.drop(columns=['f_ann_date','end_date'], inplace=True)
+        data = pd.merge(cashflow_data, total_mv, on=['ts_code', 'quarter'], how='outer')
+        data.drop(columns=['t_trade_date','quarter'], inplace=True)
+        data['n_cashflow_act'] = data['n_cashflow_act'].replace(0, np.nan)
+        data['pcf'] = (data['total_mv'] * 10000) / data['n_cashflow_act']
+        data['pcf'] = data['pcf'].apply(lambda x:round(x, 2) if pd.notnull(x) else np.nan)
+        data.drop(columns = ['total_mv', 'n_cashflow_act'], inplace=True)
+        data.dropna(subset=['trade_date'], inplace=True)
+        data.replace(np.nan, 0, inplace=True)
+        data.drop_duplicates(subset=['ts_code', 'trade_date'], inplace=True)
+        sql().insert_data(data,'stock_daily_pcf')
+        return

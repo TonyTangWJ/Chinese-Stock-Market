@@ -16,7 +16,7 @@ CREATE TABLE stock_daily_indicator (
     float_share DECIMAL(20,4),
     free_share DECIMAL(20,4),
     total_mv DECIMAL(20,4),
-    circ_mv DECIMAL(20,4),
+    circ_mv DECIMAL(20,4)    
     PRIMARY KEY (ts_code, trade_date),
     Foreign key (ts_code) REFERENCES stock_list(ts_code)
 );
