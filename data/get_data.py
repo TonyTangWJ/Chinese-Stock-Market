@@ -386,8 +386,8 @@ class get_data:
         data['pcf'] = data['pcf'].apply(lambda x:round(x, 2) if pd.notnull(x) else np.nan)
         data.drop(columns = ['total_mv', 'n_cashflow_act'], inplace=True)
         data.dropna(subset=['trade_date'], inplace=True)
-        data.replace(np.nan, 0, inplace=True)
         data.drop_duplicates(subset=['ts_code', 'trade_date'], inplace=True)
+        data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
         sql().insert_data(data,'stock_daily_pcf')
         return
     
@@ -415,6 +415,50 @@ class get_data:
         data = pd.merge(data, growth, how = 'left', on = ['ts_code', 'end_date'])
         data = pd.merge(data, cash, how = 'left', on = ['ts_code', 'end_date'])
         data.drop_duplicates(subset=['ts_code', 'end_date'], inplace = True)
-        data.replace(np.nan, 0, inplace=True)
+        data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
         sql().insert_data(data, 'factor_quarter')
         return
+    
+    # collect quarterly factor data
+    # change it to monthly data based on stock_monthly_return data
+    def get_final_factor_monthly(self):
+        quarter = sql().return_data('select * from factor_quarter')
+        quarter['ann_date'] = quarter['ann_date'].astype(str).str[:6].astype(int)
+        dividend = sql().return_data('select * from factor_stock_dividend')
+        dividend['ann_date'] = dividend['ann_date'].astype(str).str[:6].astype(int)
+        data = pd.merge(quarter, dividend, how = 'outer', on = ['ts_code', 'ann_date'])
+        date = sql().return_data('select ts_code, trade_date from label_return_data')
+        date['trade_date'] = date['trade_date'].astype(str).str[:6].astype(int)
+        data.rename(columns={'ann_date': 'trade_date'}, inplace = True)
+        data = pd.merge(date, data, how = 'left', on = ['ts_code', 'trade_date'])
+        data = data.sort_values(by='end_date_x', ascending=False)
+        data.drop_duplicates(subset= ['ts_code', 'trade_date'], inplace = True)
+        data.drop(columns = ['end_date_x','end_date_y'], inplace = True)
+        data.sort_values(by = ['ts_code', 'trade_date'], inplace = True)
+        # foreward fill none
+        data.ffill(inplace=True)
+        data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
+        sql().insert_data(data, 'A_final_factor_monthly')
+        return
+    
+    # collect stock monthly return data
+    # change the trade_date to monthly frequence
+    # Exp. from 20200101 to 202001
+    def get_final_label_monthly(self):
+        data = sql().return_data('select * from label_return_data')
+        data['trade_date'] = data['trade_date'].astype(str).str[:6].astype(int)
+        data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
+        sql().insert_data(data, 'a_final_label_monthly')
+        return
+    
+    # collect stock daily indicator data
+    def get_final_factor_daily(self):
+        data = sql().return_data('select * from factor_stock_daily_indicator')
+        data.rename(columns = {'trade_date':'date'}, inplace = True)
+        data['trade_date'] = data['date'].astype(str).str[:6].astype(int)
+        # move trade_date to the second column
+        data = data[['ts_code', 'trade_date'] + [col for col in data.columns if col not in ['ts_code', 'trade_date']]]
+        sql().insert_data(data, 'a_final_factor_daily')
+        return
+    
+    
