@@ -421,6 +421,7 @@ class get_data:
     
     # collect quarterly factor data
     # change it to monthly data based on stock_monthly_return data
+    # based on ann_date
     def get_final_factor_monthly(self):
         quarter = sql().return_data('select * from factor_quarter')
         quarter['ann_date'] = quarter['ann_date'].astype(str).str[:6].astype(int)
