@@ -5,6 +5,7 @@ from sql import sql
 from tqdm.auto import tqdm
 import warnings
 import time
+import numpy as np
 from datetime import datetime, timedelta
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -388,4 +389,32 @@ class get_data:
         data.replace(np.nan, 0, inplace=True)
         data.drop_duplicates(subset=['ts_code', 'trade_date'], inplace=True)
         sql().insert_data(data,'stock_daily_pcf')
+        return
+    
+
+    # collect quarterly factors
+    # data source: tushare
+    def get_quarterly_factors(self):
+        indicator = sql().return_data('select * from factor_repo_financial_indicator')
+        hold_ratio = sql().return_data('select * from factor_stock_top10_holders')
+        hold_ratio['end_date'] = hold_ratio['end_date'].astype('int')
+        hold_ratio.drop(columns = ['ann_date'], inplace = True)
+        structure  =  sql().return_data('select * from factor_own_structure')
+        operatin = sql().return_data('select * from factor_own_operatin')
+        operatin.drop(columns = ['ann_date'], inplace = True)
+        profit = sql().return_data('select * from factor_own_profit')
+        profit.drop(columns = ['f_ann_date'], inplace = True)
+        growth = sql().return_data('select * from factor_own_growth')
+        growth.drop(columns = ['f_ann_date'], inplace = True)
+        cash =sql().return_data('select * from factor_own_cash')
+        cash.drop(columns = ['f_ann_date'], inplace = True)
+        data = pd.merge(indicator, hold_ratio, how = 'left', on = ['ts_code', 'end_date'])
+        data = pd.merge(data, structure, how = 'left', on = ['ts_code', 'end_date'])
+        data = pd.merge(data, profit, how = 'left', on = ['ts_code', 'end_date'])
+        data = pd.merge(data, operatin, how = 'left', on = ['ts_code', 'end_date'])
+        data = pd.merge(data, growth, how = 'left', on = ['ts_code', 'end_date'])
+        data = pd.merge(data, cash, how = 'left', on = ['ts_code', 'end_date'])
+        data.drop_duplicates(subset=['ts_code', 'end_date'], inplace = True)
+        data.replace(np.nan, 0, inplace=True)
+        sql().insert_data(data, 'factor_quarter')
         return
