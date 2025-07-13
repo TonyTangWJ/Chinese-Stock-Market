@@ -1,3 +1,4 @@
+drop TABLE if exists factor_stock_daily_indicator;
 CREATE TABLE factor_stock_daily_indicator AS
 SELECT 
     a.ts_code, 
