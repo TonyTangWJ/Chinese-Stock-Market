@@ -462,4 +462,3 @@ class get_data:
         sql().insert_data(data, 'a_final_factor_daily')
         return
     
-    
