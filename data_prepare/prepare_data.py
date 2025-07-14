@@ -66,6 +66,29 @@ class prepare_data:
         sql().insert_data(factor, 'factor_daily')
         return
 
+    # calculate the mean of daily factors for each stock on a monthly basis
+    def prepare_factor_all(self):
+        month_data = sql().return_data("select * from factor_monthly")
+        day_data = sql().return_data("select * from factor_daily")
+        day_data.drop(columns = ['date'], inplace = True)
+        # get the mean of each column group by (ts_code and trade_date)
+        day_data = day_data.groupby(['ts_code', 'trade_date']).mean().reset_index()
+        # keep 2 floating point digits
+        day_data = day_data.groupby(['ts_code', 'trade_date']).round(2)
+        # keep 2 floating point digits
+        # 'total_mv', 'turnover_rate','volume_ratio', 'pb', 'pe_ttm', 'ps_ttm', 'dv_ttm', 'pcf'
+        day_data['total_mv'] = day_data['total_mv'].apply(lambda x: round(x, 2))
+        day_data['turnover_rate'] = day_data['turnover_rate'].apply(lambda x: round(x, 2))
+        day_data['volume_ratio'] = day_data['volume_ratio'].apply(lambda x: round(x, 2))
+        day_data['pb'] = day_data['pb'].apply(lambda x: round(x, 2))
+        day_data['pe_ttm'] = day_data['pe_ttm'].apply(lambda x: round(x, 2))
+        day_data['ps_ttm'] = day_data['ps_ttm'].apply(lambda x: round(x, 2))
+        day_data['dv_ttm'] = day_data['dv_ttm'].apply(lambda x: round(x, 2))
+        day_data['pcf'] = day_data['pcf'].apply(lambda x: round(x, 2))
+        # merge day_data and month_data
+        data = pd.merge(month_data, day_data, on=['ts_code', 'trade_date'], how='outer')
+        sql().insert_data(data, 'factor_all')
+        return
 
 
 
