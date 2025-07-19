@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+.env
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook
+*.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# 数据文件
+*.csv
+*.xlsx
+*.h5
+*.db
+CSV/
+
+# 日志文件
+*.log
+
+# 模型
+.pth
+
+# 其他
+.DS_Store
+Thumbs.db
