@@ -1,10 +1,7 @@
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from dataset import MyDataset
-from torch.utils.data import DataLoader, SequentialSampler
-from utils import LoadData, criterion
-import os
 from tqdm.auto import tqdm
 
 class LinearRegression(nn.Module):
@@ -49,7 +46,7 @@ class LinearRegression(nn.Module):
             total_loss += loss.item()
         return total_loss / len(train_loader)
 
-    def fit(self, train_loader, epochs=100, resume_training=False):
+    def fit(self, train_loader, epochs=100, resume_training=False, patience=5):
         start_epoch = 0
         no_improvement_count = 0
         if resume_training:
@@ -63,7 +60,7 @@ class LinearRegression(nn.Module):
             print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
-                self.save_checkpoint(epoch)
+                self._save_checkpoint(epoch)
 
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4):
@@ -71,7 +68,7 @@ class LinearRegression(nn.Module):
                 no_improvement_count = 0    
             else:
                 no_improvement_count += 1
-                if no_improvement_count >= 5:
+                if no_improvement_count >= patience:
                     print("Early stopping triggered due to no improvement in loss.")
                     break
         self.save_model()
@@ -108,7 +105,7 @@ class LinearRegression(nn.Module):
         else:
             return 1 - total_sse / total_ss
 
-    def save_checkpoint(self, epoch):
+    def _save_checkpoint(self, epoch):
         checkpoint = {
             'epoch': epoch,
             'model_state_dict': self.state_dict(),
@@ -118,9 +115,9 @@ class LinearRegression(nn.Module):
         torch.save(checkpoint, self.checkpoint_path)
         print(f"Checkpoint saved at epoch {epoch + 1}")
 
-    def load_checkpoint(self):
+    def _load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
-            checkpoint = torch.load(self.checkpoint_path, weights_only=False)
+            checkpoint = torch.load(self.checkpoint_path, weights_only=False, map_location=self.device)
             self.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             return checkpoint['epoch']
@@ -139,8 +136,4 @@ class LinearRegression(nn.Module):
         if path is None:
             path = self.model_path
         self.load_state_dict(torch.load(path, map_location=self.device))
-
-
-
-
-
+        print (f"Model successfully loaded from {path}")
