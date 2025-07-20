@@ -7,19 +7,21 @@ from utils import LoadData, criterion
 import os
 
 class LinearRegression(nn.Module):
-    def __init__(self, input_dim, output_dim=1):
+    def __init__(self, input_dim, output_dim=1, use_sigmoid = False,model_name = "linear_regression"):
         super(LinearRegression, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
         nn.init.normal_(self.linear.weight, mean=0, std=0.01)
         nn.init.constant_(self.linear.bias, 0)
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
-        self.checkpoint_path = "model/checkpoints/linear_regression_checkpoint.pth"
-        self.model_path = "model/final_models/linear_regression.pth"
+        self.use_sigmoid = use_sigmoid
+        self.checkpoint_path = f"model/checkpoints/{model_name}_checkpoint.pth"
+        self.model_path = f"model/final_models/{model_name}.pth"
         
     def forward(self, x):
         x = self.linear(x)
-        x = nn.Sigmoid()(x)
+        if self.use_sigmoid:
+            x = nn.Sigmoid()(x)
         return x
     
     def train_step(self, train_loader, criterion=None):
