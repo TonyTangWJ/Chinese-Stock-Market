@@ -12,18 +12,16 @@ class LinearRegression(nn.Module):
     def forward(self, x):
         return self.linear(x)
     
-    def train(self, train_loader, criterion, optimizer, device):
-        self.train()
+    def train(self, train_set, criterion, optimizer):
         total_loss = 0.0
-        for inputs, targets in train_loader:
-            inputs, targets = inputs.to(device), targets.to(device)
+        for inputs, targets in train_set:
             optimizer.zero_grad()
             outputs = self(inputs)
             loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-        return total_loss / len(train_loader)
+        return total_loss / len(train_set)
 
 
 
