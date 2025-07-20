@@ -5,6 +5,7 @@ from dataset import MyDataset
 from torch.utils.data import DataLoader, SequentialSampler
 from utils import LoadData, criterion
 import os
+from tqdm.auto import tqdm
 
 class LinearRegression(nn.Module):
     def __init__(self, input_dim, output_dim=1, use_sigmoid = False,model_name = "linear_regression"):
@@ -50,9 +51,10 @@ class LinearRegression(nn.Module):
             print(f"Resuming training from epoch {start_epoch + 1}")
 
         prev_loss = float('inf')
-        for epoch in range(start_epoch, epochs):
+        for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader)
-            print(f"Epoch {epoch + 1}/{epochs}, Train Loss: {train_loss:.4f}")
+            # Print training progress
+            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self.save_checkpoint(epoch)
