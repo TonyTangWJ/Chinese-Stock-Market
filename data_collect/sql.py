@@ -13,7 +13,7 @@ class sql:
         self.conn = mysql.connector.connect(
             host='localhost',
             user='root',
-            password='19990509twj',
+            password='Password123',
             database=database,
             use_pure=False,
             allow_local_infile=True
