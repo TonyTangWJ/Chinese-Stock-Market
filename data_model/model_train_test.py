@@ -1,27 +1,131 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from dataset import MyDataset
 from torch.utils.data import DataLoader, SequentialSampler
-
+from utils import LoadData, criterion
+import os
 
 class LinearRegression(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, output_dim=1):
         super(LinearRegression, self).__init__()
-        self.linear = nn.Linear(input_dim, 1)
-
+        self.linear = nn.Linear(input_dim, output_dim)
+        nn.init.normal_(self.linear.weight, mean=0, std=0.01)
+        nn.init.constant_(self.linear.bias, 0)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.loss_fn = nn.MSELoss()
+        self.checkpoint_path = "model/checkpoints/linear_regression_checkpoint.pth"
+        self.model_path = "model/final_models/linear_regression.pth"
+        
     def forward(self, x):
-        return self.linear(x)
+        x = self.linear(x)
+        x = nn.Sigmoid()(x)
+        return x
     
-    def train(self, train_set, criterion, optimizer):
+    def train_step(self, train_loader, criterion=None):
+        if criterion is None:
+            criterion = self.loss_fn
+        self.train()
         total_loss = 0.0
-        for inputs, targets in train_set:
-            optimizer.zero_grad()
-            outputs = self(inputs)
+        for train_data in train_loader:
+            inputs = train_data[0]
+            targets = train_data[3]
+            if targets.dim() == 1:
+                targets = targets.unsqueeze(1)
+            self.optimizer.zero_grad()
+            outputs = self.forward(inputs)
             loss = criterion(outputs, targets)
             loss.backward()
-            optimizer.step()
+            self.optimizer.step()
             total_loss += loss.item()
-        return total_loss / len(train_set)
+        return total_loss / len(train_loader)
+
+    def fit(self, train_loader, epochs=100, resume_training=False):
+        start_epoch = 0
+        no_improvement_count = 0
+        if resume_training:
+            start_epoch = self.load_checkpoint()
+            print(f"Resuming training from epoch {start_epoch + 1}")
+
+        prev_loss = float('inf')
+        for epoch in range(start_epoch, epochs):
+            train_loss = self.train_step(train_loader)
+            print(f"Epoch {epoch + 1}/{epochs}, Train Loss: {train_loss:.4f}")
+            # Save checkpoint every 10 epochs
+            if (epoch + 1) % 10 == 0:
+                self.save_checkpoint(epoch)
+
+            # if loss is not improving for 5 epochs, stop training
+            if round(train_loss,4) < round(prev_loss,4):
+                prev_loss = train_loss
+                no_improvement_count = 0    
+            else:
+                no_improvement_count += 1
+                if no_improvement_count >= 5:
+                    print("Early stopping triggered due to no improvement in loss.")
+                    break
+        self.save_model()
+
+    # Predict method & reverse normalization
+    def predict(self, data, label_mean_val, label_std_val):
+        self.eval()
+        with torch.no_grad():
+            pred = self.forward(data)
+        # reverse normalization
+        pred = pred * label_std_val + label_mean_val
+        return pred
+        
+    # nondemeaned R^2 evaluation
+    def evaluate(self, test_loader):
+        self.eval()
+        total_sse = 0.0
+        total_ss = 0.0
+        with torch.no_grad():
+            for test_data in test_loader:
+                inputs = test_data[0]
+                targets = test_data[3]
+                if targets.dim() == 1:
+                    targets = targets.unsqueeze(1)
+                outputs = self(inputs)
+                # Calculate sum of squared errors and total sum of squares
+                sse = torch.sum((targets - outputs) ** 2)
+                ss = torch.sum(targets ** 2)
+                total_sse += sse.item()
+                total_ss += ss.item()
+        if total_ss < 1e-8:
+            return 0
+        else:
+            return 1 - total_sse / total_ss
+
+    def save_checkpoint(self, epoch):
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'loss': self.loss_fn
+        }
+        torch.save(checkpoint, self.checkpoint_path)
+        print(f"Checkpoint saved at epoch {epoch + 1}")
+
+    def load_checkpoint(self):
+        if os.path.exists(self.checkpoint_path):
+            checkpoint = torch.load(self.checkpoint_path, weights_only=False)
+            self.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            return checkpoint['epoch']
+        else:
+            print("No checkpoint found. Starting from scratch.")
+            return 0
+
+    def save_model(self, path=None):
+        if path is None:
+            path = self.model_path
+        torch.save(self.state_dict(), path)
+
+    def load_model(self, path=None):
+        if path is None:
+            path = self.model_path
+        self.load_state_dict(torch.load(path))
 
 
 
