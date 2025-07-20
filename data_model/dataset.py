@@ -41,28 +41,28 @@ class MyDataset(Dataset):
     
     def get_factors_norm_params(self, train_size):
         train_indice = int(len(self.data) * train_size)
-        train_data = self.data[:train_indice, :-3]  # 取特征部分（除最后3列）
-        self.factor_min = train_data.min(dim=0, keepdim=True)[0]  # 保持维度 [1, n_features]
-        self.factor_max = train_data.max(dim=0, keepdim=True)[0]  # [1, n_features]
-        self.factor_mean = train_data.mean(dim=0, keepdim=True)   # [1, n_features]
-        self.factor_std = train_data.std(dim=0, keepdim=True)     # [1, n_features]
+        train_data = self.data[:train_indice, :-3]
+        self.factor_min = train_data.min(dim=0, keepdim=True)[0]
+        self.factor_max = train_data.max(dim=0, keepdim=True)[0]
+        self.factor_mean = train_data.mean(dim=0, keepdim=True)
+        self.factor_std = train_data.std(dim=0, keepdim=True)
         return
         
     def get_labels_norm_params(self, train_size):
         train_indice = int(len(self.data) * train_size)
-        train_data = self.data[:train_indice, -3:]  # 取最后3列作为label
-        self.label_min = train_data.min(dim=0, keepdim=True)[0]  # [1, 3]
-        self.label_max = train_data.max(dim=0, keepdim=True)[0]  # [1, 3]
-        self.label_mean = train_data.mean(dim=0, keepdim=True)   # [1, 3]
-        self.label_std = train_data.std(dim=0, keepdim=True)     # [1, 3]
+        train_data = self.data[:train_indice, -3:]
+        self.label_min = train_data.min(dim=0, keepdim=True)[0]
+        self.label_max = train_data.max(dim=0, keepdim=True)[0]
+        self.label_mean = train_data.mean(dim=0, keepdim=True)
+        self.label_std = train_data.std(dim=0, keepdim=True)
         return
     
 
     def winsorize_data(self, df, lower=0.04, upper=0.96):
         for col in df.select_dtypes(include=['float64', 'int64']).columns:
-            lower_bound = df[col].quantile(lower)  # 4% 分位数
-            upper_bound = df[col].quantile(upper)  # 96% 分位数
-            df[col] = df[col].clip(lower_bound, upper_bound)  # 限制在 [4%, 96%]
+            lower_bound = df[col].quantile(lower)
+            upper_bound = df[col].quantile(upper)
+            df[col] = df[col].clip(lower_bound, upper_bound)
         return df
 
 
