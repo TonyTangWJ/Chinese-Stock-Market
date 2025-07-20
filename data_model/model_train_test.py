@@ -18,7 +18,13 @@ class LinearRegression(nn.Module):
         self.use_sigmoid = use_sigmoid
         self.checkpoint_path = f"model/checkpoints/{model_name}_checkpoint.pth"
         self.model_path = f"model/final_models/{model_name}.pth"
-        
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
+        self.to(self.device)
+
+
     def forward(self, x):
         x = self.linear(x)
         if self.use_sigmoid:
@@ -31,8 +37,8 @@ class LinearRegression(nn.Module):
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
-            inputs = train_data[0]
-            targets = train_data[3]
+            inputs = train_data[0].to(self.device)
+            targets = train_data[3].to(self.device)
             if targets.dim() == 1:
                 targets = targets.unsqueeze(1)
             self.optimizer.zero_grad()
@@ -73,6 +79,7 @@ class LinearRegression(nn.Module):
     # Predict method & reverse normalization
     def predict(self, data, label_mean_val, label_std_val):
         self.eval()
+        data = data.to(self.device)
         with torch.no_grad():
             pred = self.forward(data)
         # reverse normalization
@@ -86,8 +93,8 @@ class LinearRegression(nn.Module):
         total_ss = 0.0
         with torch.no_grad():
             for test_data in test_loader:
-                inputs = test_data[0]
-                targets = test_data[3]
+                inputs = test_data[0].to(self.device)
+                targets = test_data[3].to(self.device)
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
                 outputs = self(inputs)
@@ -124,12 +131,14 @@ class LinearRegression(nn.Module):
     def save_model(self, path=None):
         if path is None:
             path = self.model_path
+        os.makedirs(os.path.dirname(path), exist_ok=True) 
         torch.save(self.state_dict(), path)
+        print (f"Model successfully saved to {path}")
 
     def load_model(self, path=None):
         if path is None:
             path = self.model_path
-        self.load_state_dict(torch.load(path))
+        self.load_state_dict(torch.load(path, map_location=self.device))
 
 
 

@@ -3,7 +3,7 @@ import pandas as pd
 from torch.utils.data import Dataset, DataLoader, Subset
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-# 示例自定义数据集
+
 class MyDataset(Dataset):
     def __init__(self, factor, label, train_size=0.5):
         self.factor = factor
