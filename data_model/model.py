@@ -13,14 +13,21 @@ class LinearRegression(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
         self.use_sigmoid = use_sigmoid
-        self.checkpoint_path = f"model/checkpoints/{model_name}_checkpoint.pth"
-        self.model_path = f"model/final_models/{model_name}.pth"
+        self.model_name = model_name
+        self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
+        self.model_path = f"model/final_models/{self.model_name}.pth"
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
         else:
             self.device = torch.device("cpu")
         self.to(self.device)
 
+    def reset_model(self):
+        self.linear.reset_parameters()
+        nn.init.normal_(self.linear.weight, mean=0, std=0.01)
+        nn.init.constant_(self.linear.bias, 0)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        return
 
     def forward(self, x):
         x = self.linear(x)
@@ -56,11 +63,11 @@ class LinearRegression(nn.Module):
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader)
-            # Print training progress
-            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4):
