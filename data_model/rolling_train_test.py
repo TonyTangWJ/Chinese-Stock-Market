@@ -1,4 +1,4 @@
-
+import numpy as np
 from tqdm.auto import tqdm
 
 
@@ -15,18 +15,26 @@ class RollingTrainTest:
 
     def run(self):
         self.predictability = []
+        self.pred_list = []
         num_iterations = int((1 - self.train_size) / self.test_size)
         for _ in range(num_iterations):
             self.train_loader = self.Data.get_train_loader(train_size=self.train_size)
             self.test_loader = self.Data.get_test_loader(test_size=self.test_size)
             self.model.fit(self.train_loader, epochs=self.epochs, patience=self.patience)
             result= self.model.evaluate(self.test_loader)
+            label_mean = self.Data.dataloader.label_mean
+            label_std = self.Data.dataloader.label_std
+            pred = self.model.predict(self.test_loader, label_mean, label_std)
+            self.pred_list.append(pred)
             self.predictability.append(result)
             print (f'No.{_+1} Predictability: {result}')
             self.train_size += self.test_size
+        self.pred = np.concatenate(self.pred_list, axis=0)
         print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability)}")
 
-
+    def backtest(self):
+        
+        return
 
 
 
