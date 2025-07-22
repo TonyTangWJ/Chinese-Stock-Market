@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm.auto import tqdm
+import numpy as np
 
 class LinearRegression(nn.Module):
     def __init__(self, input_dim, output_dim=1, use_sigmoid = False,model_name = "linear_regression"):
@@ -57,7 +58,7 @@ class LinearRegression(nn.Module):
         start_epoch = 0
         no_improvement_count = 0
         if resume_training:
-            start_epoch = self.load_checkpoint()
+            start_epoch = self._load_checkpoint()
             print(f"Resuming training from epoch {start_epoch + 1}")
 
         prev_loss = float('inf')
@@ -76,18 +77,24 @@ class LinearRegression(nn.Module):
             else:
                 no_improvement_count += 1
                 if no_improvement_count >= patience:
-                    print("Early stopping triggered due to no improvement in loss.")
+                    # print("Early stopping triggered due to no improvement in loss.")
                     break
         self.save_model()
 
     # Predict method & reverse normalization
-    def predict(self, data, label_mean_val, label_std_val):
+    def predict(self, test_loader, label_mean, label_std):
         self.eval()
-        data = data.to(self.device)
+        pred_list = []
         with torch.no_grad():
-            pred = self.forward(data)
-        # reverse normalization
-        pred = pred * label_std_val + label_mean_val
+            for test_data in test_loader:
+                data = test_data[0].to(self.device)
+                if data.dim() == 1:
+                    data = data.unsqueeze(1)
+                pred = self(data)
+                # reverse normalization
+                pred = pred * label_std[:, 2:3] + label_mean[:, 2:3]
+                pred_list.append(pred.cpu().numpy())
+        pred = np.concatenate(pred_list, axis=0)
         return pred
         
     # nondemeaned R^2 evaluation
