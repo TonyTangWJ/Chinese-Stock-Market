@@ -85,17 +85,31 @@ class LinearRegression(nn.Module):
     def predict(self, test_loader, label_mean, label_std):
         self.eval()
         pred_list = []
+        act_list = []
         with torch.no_grad():
             for test_data in test_loader:
                 data = test_data[0].to(self.device)
+                act_high = test_data[1].to(self.device)
+                act_low = test_data[2].to(self.device)
+                act_close = test_data[3].to(self.device)
+                if act_high.dim() == 1:
+                    act_high = act_high.unsqueeze(1)
+                if act_low.dim() == 1:
+                    act_low = act_low.unsqueeze(1)
+                if act_close.dim() == 1:
+                    act_close = act_close.unsqueeze(1)
+                act = torch.cat([act_high, act_low, act_close], dim=1)
+                act = act * label_std + label_mean
+                act_list.append(act.cpu().numpy())
                 if data.dim() == 1:
                     data = data.unsqueeze(1)
                 pred = self(data)
                 # reverse normalization
-                pred = pred * label_std[:, 2:3] + label_mean[:, 2:3]
+                pred = pred * label_std + label_mean
                 pred_list.append(pred.cpu().numpy())
         pred = np.concatenate(pred_list, axis=0)
-        return pred
+        act = np.concatenate(act_list, axis=0)
+        return pred, act
         
     # nondemeaned R^2 evaluation
     def evaluate(self, test_loader):
