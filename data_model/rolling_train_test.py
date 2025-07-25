@@ -1,6 +1,7 @@
 import numpy as np
+import pandas as pd
 from tqdm.auto import tqdm
-
+import os
 
 
 class RollingTrainTest:
@@ -8,6 +9,7 @@ class RollingTrainTest:
         self.model = model
         self.model_name = self.model.model_name
         self.Data = Data
+        self.train_size_original = train_size
         self.train_size = train_size
         self.test_size = test_size
         self.epochs = epochs
@@ -35,8 +37,22 @@ class RollingTrainTest:
         self.act = np.concatenate(self.act_list, axis=0)
         print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability)}")
 
-    def backtest(self):
-        
+    def backtest(self, trade_mode = 1):
+        if trade_mode == 1:
+            pred = self.pred[:,-1]
+            act = self.act[:,-1]
+            pred = np.where(pred > 0, 1, -1)
+            self.profit_rate = np.mean(pred * act)/(10*(1-self.train_size_original))
+            # check if the file exists and write the profit rate
+            file_path = '../CSV/profit_rate.csv'
+            mode = 'a' if os.path.exists(file_path) else 'w'      
+            with open(file_path, mode) as f:
+                if mode == 'w':
+                    f.write('model_name,profit_rate\n')
+                f.write(f'{self.model_name},{self.profit_rate}\n')
+            print(f"Profit rate of {self.model_name}: {self.profit_rate}")
+        else:
+            pass
         return
 
 
