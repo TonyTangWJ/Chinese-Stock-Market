@@ -18,6 +18,7 @@ class RollingTrainTest:
     def run(self):
         self.predictability = []
         self.pred_list = []
+        self.pred_list_top10 = []
         self.act_list = []
         num_iterations = int((1 - self.train_size) / self.test_size)
         for _ in range(num_iterations):
@@ -28,13 +29,23 @@ class RollingTrainTest:
             label_mean = self.Data.dataloader.label_mean
             label_std = self.Data.dataloader.label_std
             pred, act = self.model.predict(self.test_loader, label_mean, label_std)
+            # store the predictions
             self.pred_list.append(pred)
+            # keep the top 10 and bottom 10 predictions, change the others to 0, keep the order
+            long_indices = np.argsort(pred)[-10:]
+            short_indices = np.argsort(pred)[:10]
+            pred_top10 = np.zeros_like(pred)
+            pred_top10[long_indices] = pred[long_indices]
+            pred_top10[short_indices] = pred[short_indices]
+            self.pred_list_top10.append(pred_top10)
+            # store the actual values
             self.act_list.append(act)
             self.predictability.append(result)
             print (f'No.{_+1} Predictability: {result}')
             self.train_size += self.test_size
         self.pred = np.concatenate(self.pred_list, axis=0)
         self.act = np.concatenate(self.act_list, axis=0)
+        self.pred_top10 = np.concatenate(self.pred_list_top10, axis=0)
         print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability)}")
 
     def backtest(self, trade_mode = 1):
@@ -49,21 +60,26 @@ class RollingTrainTest:
             with open(file_path, mode) as f:
                 if mode == 'w':
                     f.write('model_name,profit_rate\n')
-                f.write(f'{self.model_name},{self.profit_rate}\n')
-            print(f"Profit rate of {self.model_name}: {self.profit_rate}")
+                f.write(f'{self.model_name},{self.profit_rate:.4f}\n')
+            print(f"Total Profit rate of {self.model_name}: {self.profit_rate:.4f}")
         else:
             pass
         return
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    def backtest_top10(self, trade_mode = 1):
+        if trade_mode == 1:
+            pred = self.pred_top10[:,-1]
+            act = self.act[:,-1]
+            pred = np.where(pred > 0, 1, -1)
+            self.profit_rate_top10 = np.mean(pred * act)/(10*(1-self.train_size_original))
+            # check if the file exists and write the profit rate
+            file_path = '../CSV/profit_rate_top10.csv'
+            mode = 'a' if os.path.exists(file_path) else 'w'      
+            with open(file_path, mode) as f:
+                if mode == 'w':
+                    f.write('model_name,profit_rate_top10\n')
+                f.write(f'{self.model_name},{self.profit_rate_top10:.4f}\n')
+            print(f"Top10 Profit rate of {self.model_name} top 10: {self.profit_rate_top10:.4f}")
+        else:
+            pass
+        return
