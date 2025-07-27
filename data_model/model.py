@@ -9,9 +9,9 @@ class LinearRegression(nn.Module):
     def __init__(self, input_dim, output_dim=1,model_name = "linear_regression"):
         super(LinearRegression, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
-        nn.init.normal_(self.linear.weight, mean=0, std=0.01)
+        nn.init.normal_(self.linear.weight, mean=0, std=0.1)
         nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
         self.model_name = model_name
         if not os.path.exists("model/checkpoints"):
@@ -174,9 +174,9 @@ class ElasticNet(nn.Module):
     def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, model_name = "ElasticNet"):
         super(ElasticNet, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
-        nn.init.normal_(self.linear.weight, mean=0, std=0.01)
+        nn.init.normal_(self.linear.weight, mean=0, std=0.1)
         nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
         self.model_name = model_name
         self.alpha = alpha
@@ -342,19 +342,17 @@ class ElasticNet(nn.Module):
     
 
 class NN_3Layers(nn.Module):
-    def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, model_name = "NN_5Layers"):
+    def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, model_name = "NN_3Layers"):
         super(NN_3Layers, self).__init__()
         
         self.layers = nn.Sequential(
             nn.Linear(input_dim, 16),
-            nn.ReLU(),
-            nn.Linear(16, 8),
-            nn.ReLU(),
-            nn.Linear(8, output_dim),
+            nn.Sigmoid(),
+            nn.Linear(16, output_dim),
             nn.Tanh()
         )
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
         self.model_name = model_name
         self.alpha = alpha
@@ -375,7 +373,7 @@ class NN_3Layers(nn.Module):
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=0.01)
+                nn.init.normal_(module.weight, mean=0, std=0.1)
                 nn.init.constant_(module.bias, 0)
 
     def forward(self, x):
