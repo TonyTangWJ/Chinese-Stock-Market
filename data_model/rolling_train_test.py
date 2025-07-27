@@ -41,12 +41,18 @@ class RollingTrainTest:
             # store the actual values
             self.act_list.append(act)
             self.predictability.append(result)
-            print (f'No.{_+1} Predictability: {result}')
+            print (f'No.{_+1} Predictability: {result:.4f}')
             self.train_size += self.test_size
         self.pred = np.concatenate(self.pred_list, axis=0)
         self.act = np.concatenate(self.act_list, axis=0)
         self.pred_top10 = np.concatenate(self.pred_list_top10, axis=0)
-        print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability)}")
+        print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability):.4f}")
+        file = f'../CSV/predictability.csv'
+        mode = 'a' if os.path.exists(file) else 'w'
+        with open(file, mode) as f:
+            if mode == 'w':
+                f.write('model_name,predictability\n')
+            f.write(f'{self.model_name},{sum(self.predictability) / len(self.predictability):.4f}\n')
 
     def backtest(self, trade_mode = 1):
         if trade_mode == 1:

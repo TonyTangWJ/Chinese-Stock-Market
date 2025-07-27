@@ -6,14 +6,13 @@ from tqdm.auto import tqdm
 import numpy as np
 
 class LinearRegression(nn.Module):
-    def __init__(self, input_dim, output_dim=1, use_sigmoid = False,model_name = "linear_regression"):
+    def __init__(self, input_dim, output_dim=1,model_name = "linear_regression"):
         super(LinearRegression, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
         nn.init.normal_(self.linear.weight, mean=0, std=0.01)
         nn.init.constant_(self.linear.bias, 0)
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
-        self.use_sigmoid = use_sigmoid
         self.model_name = model_name
         self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
         self.model_path = f"model/final_models/{self.model_name}.pth"
@@ -23,6 +22,11 @@ class LinearRegression(nn.Module):
             self.device = torch.device("cpu")
         self.to(self.device)
 
+
+    def forward(self, x):
+        x = self.linear(x)
+        return x
+
     def reset_model(self):
         self.linear.reset_parameters()
         nn.init.normal_(self.linear.weight, mean=0, std=0.01)
@@ -30,11 +34,6 @@ class LinearRegression(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         return
 
-    def forward(self, x):
-        x = self.linear(x)
-        if self.use_sigmoid:
-            x = nn.Sigmoid()(x)
-        return x
     
     def train_step(self, train_loader, target = 3,criterion=None):
         if criterion is None:
@@ -170,15 +169,16 @@ class LinearRegression(nn.Module):
 
 
 class ElasticNet(nn.Module):
-    def __init__(self, input_dim, output_dim=1, use_sigmoid = False,model_name = "linear_regression"):
-        super(LinearRegression, self).__init__()
+    def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, model_name = "linear_regression"):
+        super(ElasticNet, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
         nn.init.normal_(self.linear.weight, mean=0, std=0.01)
         nn.init.constant_(self.linear.bias, 0)
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
-        self.use_sigmoid = use_sigmoid
         self.model_name = model_name
+        self.alpha = alpha
+        self.l1_ratio = l1_ratio
         self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
         self.model_path = f"model/final_models/{self.model_name}.pth"
         if torch.cuda.is_available():
@@ -187,6 +187,17 @@ class ElasticNet(nn.Module):
             self.device = torch.device("cpu")
         self.to(self.device)
 
+    def forward(self, x):
+        x = self.linear(x)
+        return x
+
+    def elastic_net_loss(self, outputs, targets):
+        mse_loss = self.loss_fn(outputs, targets)
+        l1_reg = torch.sum(torch.abs(self.linear.weight))
+        l2_reg = torch.sum(self.linear.weight ** 2)
+        elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
+        return mse_loss + elastic_reg
+
     def reset_model(self):
         self.linear.reset_parameters()
         nn.init.normal_(self.linear.weight, mean=0, std=0.01)
@@ -194,15 +205,9 @@ class ElasticNet(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         return
 
-    def forward(self, x):
-        x = self.linear(x)
-        if self.use_sigmoid:
-            x = nn.Sigmoid()(x)
-        return x
-    
     def train_step(self, train_loader, target = 3,criterion=None):
         if criterion is None:
-            criterion = self.loss_fn
+            criterion = self.elastic_net_loss
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
