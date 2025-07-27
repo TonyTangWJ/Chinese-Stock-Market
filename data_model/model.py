@@ -8,14 +8,16 @@ import numpy as np
 class LinearRegression(nn.Module):
     def __init__(self, input_dim, output_dim=1,model_name = "linear_regression"):
         super(LinearRegression, self).__init__()
-        self.layers = nn.Sequential(
-            nn.Linear(input_dim, output_dim)
-        )
+        self.linear = nn.Linear(input_dim, output_dim)
         nn.init.normal_(self.linear.weight, mean=0, std=0.01)
         nn.init.constant_(self.linear.bias, 0)
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
         self.model_name = model_name
+        if not os.path.exists("model/checkpoints"):
+            os.makedirs("model/checkpoints")
+        if not os.path.exists("model/final_models"):
+            os.makedirs("model/final_models")
         self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
         self.model_path = f"model/final_models/{self.model_name}.pth"
         if torch.cuda.is_available():
@@ -25,7 +27,7 @@ class LinearRegression(nn.Module):
         self.to(self.device)
 
     def forward(self, x):
-        return self.layers(x)
+        return self.linear(x)
     
     def reset_model(self):
         self.linear.reset_parameters()
@@ -171,9 +173,7 @@ class LinearRegression(nn.Module):
 class ElasticNet(nn.Module):
     def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, model_name = "ElasticNet"):
         super(ElasticNet, self).__init__()
-        self.layers = nn.Sequential(
-            nn.Linear(input_dim, output_dim)
-        )
+        self.linear = nn.Linear(input_dim, output_dim)
         nn.init.normal_(self.linear.weight, mean=0, std=0.01)
         nn.init.constant_(self.linear.bias, 0)
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
@@ -181,6 +181,10 @@ class ElasticNet(nn.Module):
         self.model_name = model_name
         self.alpha = alpha
         self.l1_ratio = l1_ratio
+        if not os.path.exists("model/checkpoints"):
+            os.makedirs("model/checkpoints")
+        if not os.path.exists("model/final_models"):
+            os.makedirs("model/final_models")
         self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
         self.model_path = f"model/final_models/{self.model_name}.pth"
         if torch.cuda.is_available():
@@ -190,7 +194,7 @@ class ElasticNet(nn.Module):
         self.to(self.device)
 
     def forward(self, x):
-        return self.layers(x)
+        return self.linear(x)
 
     def elastic_net_loss(self, outputs, targets):
         mse_loss = self.loss_fn(outputs, targets)
@@ -337,18 +341,14 @@ class ElasticNet(nn.Module):
         print (f"Model successfully loaded from {path}")
     
 
-class NN_5Layers(nn.Module):
+class NN_3Layers(nn.Module):
     def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, model_name = "NN_5Layers"):
-        super(NN_5Layers, self).__init__()
+        super(NN_3Layers, self).__init__()
         
         self.layers = nn.Sequential(
-            nn.Linear(input_dim, 128),
+            nn.Linear(input_dim, 16),
             nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Linear(32, 8),
+            nn.Linear(16, 8),
             nn.ReLU(),
             nn.Linear(8, output_dim),
             nn.Tanh()
@@ -359,8 +359,13 @@ class NN_5Layers(nn.Module):
         self.model_name = model_name
         self.alpha = alpha
         self.l1_ratio = l1_ratio
+        if not os.path.exists("model/checkpoints"):
+            os.makedirs("model/checkpoints")
+        if not os.path.exists("model/final_models"):
+            os.makedirs("model/final_models")
         self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
         self.model_path = f"model/final_models/{self.model_name}.pth"
+
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
         else:
