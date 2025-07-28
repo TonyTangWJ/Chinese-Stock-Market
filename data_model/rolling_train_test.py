@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 import os
+from utils import RiskMetrics
 
 
 class RollingTrainTest:
@@ -54,38 +55,72 @@ class RollingTrainTest:
                 f.write('model_name,predictability\n')
             f.write(f'{self.model_name},{sum(self.predictability) / len(self.predictability):.4f}\n')
 
-    def backtest(self, trade_mode = 1):
+    def backtest(self, trade_mode=1, data_frequency='monthly'):
         if trade_mode == 1:
             pred = self.pred[:,-1]
             act = self.act[:,-1]
             pred = np.where(pred > 0, 1, -1)
-            self.profit_rate = np.mean(pred * act)/(10*(1-self.train_size_original))
-            # check if the file exists and write the profit rate
-            file_path = '../CSV/profit_rate.csv'
+            
+            period_returns = pred * act
+            
+            # 使用月度数据计算风险指标
+            risk_metrics = RiskMetrics(data_frequency=data_frequency)
+            metrics = risk_metrics.calculate_metrics(period_returns)
+            
+            # 保存关键指标
+            self.profit_rate = metrics['mean_return']
+            self.sharpe_ratio = metrics['sharpe_ratio']
+            self.max_drawdown = metrics['max_drawdown']
+            
+            # 保存到CSV
+            file_path = '../CSV/profit_indicators.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('model_name,profit_rate\n')
-                f.write(f'{self.model_name},{self.profit_rate:.4f}\n')
-            print(f"Total Profit rate of {self.model_name}: {self.profit_rate:.4f}")
+                    f.write('model_name,mean_return,sharpe_ratio,max_drawdown,annualized_return,annualized_volatility,win_rate\n')
+                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
+            
+            print(f"Monthly Return: {metrics['mean_return']:.4f}")
+            print(f"Annualized Return: {metrics['annualized_return']:.4f}")
+            print(f"Annualized Sharpe Ratio: {metrics['sharpe_ratio']:.4f}")
+            print(f"Max Drawdown: {metrics['max_drawdown']:.4f}")
         else:
+
             pass
+
         return
     
-    def backtest_top10(self, trade_mode = 1):
+    def backtest_top10(self, trade_mode = 1, data_frequency='monthly'):
         if trade_mode == 1:
             pred = self.pred_top10[:,-1]
             act = self.act[:,-1]
             pred = np.where(pred > 0, 1, -1)
-            self.profit_rate_top10 = np.mean(pred * act)/(10*(1-self.train_size_original))
-            # check if the file exists and write the profit rate
-            file_path = '../CSV/profit_rate_top10.csv'
+            
+            period_returns = pred * act
+            
+            # 使用月度数据计算风险指标
+            risk_metrics = RiskMetrics(data_frequency=data_frequency)
+            metrics = risk_metrics.calculate_metrics(period_returns)
+            
+            # 保存关键指标
+            self.profit_rate_top10 = metrics['mean_return']
+            self.sharpe_ratio_top10 = metrics['sharpe_ratio']
+            self.max_drawdown_top10 = metrics['max_drawdown']
+            
+            # 保存到CSV
+            file_path = '../CSV/profit_indicators_top10.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('model_name,profit_rate_top10\n')
-                f.write(f'{self.model_name},{self.profit_rate_top10:.4f}\n')
-            print(f"Top10 Profit rate of {self.model_name} top 10: {self.profit_rate_top10:.4f}")
+                    f.write('model_name,mean_return,sharpe_ratio,max_drawdown,annualized_return,annualized_volatility,win_rate\n')
+                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
+            
+            print(f"Monthly Return (Top 10): {metrics['mean_return']:.4f}")
+            print(f"Annualized Return (Top 10): {metrics['annualized_return']:.4f}")
+            print(f"Annualized Sharpe Ratio (Top 10): {metrics['sharpe_ratio']:.4f}")
+            print(f"Max Drawdown (Top 10): {metrics['max_drawdown']:.4f}")
         else:
             pass
+
         return
+        

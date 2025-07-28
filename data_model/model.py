@@ -31,9 +31,9 @@ class LinearRegression(nn.Module):
     
     def reset_model(self):
         self.linear.reset_parameters()
-        nn.init.normal_(self.linear.weight, mean=0, std=0.01)
+        nn.init.normal_(self.linear.weight, mean=0, std=0.1)
         nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         return
 
     
@@ -205,9 +205,9 @@ class ElasticNet(nn.Module):
 
     def reset_model(self):
         self.linear.reset_parameters()
-        nn.init.normal_(self.linear.weight, mean=0, std=0.01)
+        nn.init.normal_(self.linear.weight, mean=0, std=0.1)
         nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         return
 
     def train_step(self, train_loader, target = 3,criterion=None):
@@ -341,20 +341,61 @@ class ElasticNet(nn.Module):
         print (f"Model successfully loaded from {path}")
     
 
-class NN_3Layers(nn.Module):
-    def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, model_name = "NN_3Layers"):
-        super(NN_3Layers, self).__init__()
+class NN(nn.Module):
+    def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, layer = 2, model_name = "NN"):
+        super(NN, self).__init__()
         
-        self.layers = nn.Sequential(
-            nn.Linear(input_dim, 16),
-            nn.Sigmoid(),
-            nn.Linear(16, output_dim),
-            nn.Tanh()
-        )
+        if layer == 1:
+            self.layers = nn.Sequential(
+                nn.Linear(input_dim, output_dim),
+                nn.Tanh()
+            )
+        elif layer == 2:
+            self.layers = nn.Sequential(
+                nn.Linear(input_dim, 32),
+                nn.Sigmoid(),
+                nn.Linear(32, output_dim),
+                nn.Tanh()
+            )
+        elif layer == 3:
+            self.layers = nn.Sequential(
+                nn.Linear(input_dim, 32),
+                nn.Sigmoid(),
+                nn.Linear(32, 16),
+                nn.Sigmoid(),
+                nn.Linear(16, output_dim),
+                nn.Tanh()
+            )
+        elif layer == 4:
+            self.layers = nn.Sequential(
+                nn.Linear(input_dim, 32),
+                nn.Sigmoid(),
+                nn.Linear(32, 16),
+                nn.Sigmoid(),
+                nn.Linear(16, 8),
+                nn.Sigmoid(),
+                nn.Linear(8, output_dim),
+                nn.Tanh()
+            )
+        elif layer == 5:
+            self.layers = nn.Sequential(
+                nn.Linear(input_dim, 32),
+                nn.Sigmoid(),
+                nn.Linear(32, 16),
+                nn.Sigmoid(),
+                nn.Linear(16, 8),
+                nn.Sigmoid(),
+                nn.Linear(8, 4),
+                nn.Sigmoid(),
+                nn.Linear(4, output_dim),
+                nn.Tanh()
+            )
+        else:
+            raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
         self._initialize_weights()
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
-        self.model_name = model_name
+        self.model_name = model_name + f"_{layer}Layers"
         self.alpha = alpha
         self.l1_ratio = l1_ratio
         if not os.path.exists("model/checkpoints"):
@@ -525,3 +566,120 @@ class NN_3Layers(nn.Module):
             path = self.model_path
         self.load_state_dict(torch.load(path, map_location=self.device))
         print (f"Model successfully loaded from {path}")
+
+
+class RandomForest:
+    def __init__(self, n_estimators=100, max_depth=None, min_samples_split=2, 
+                 min_samples_leaf=1, random_state=42, model_name="RandomForest"):
+        from sklearn.ensemble import RandomForestRegressor
+        
+        self.model = RandomForestRegressor(
+            n_estimators=n_estimators,      # 树的数量
+            max_depth=max_depth,            # 树的最大深度
+            min_samples_split=min_samples_split,  # 分割节点最小样本数
+            min_samples_leaf=min_samples_leaf,    # 叶节点最小样本数
+            random_state=random_state,      # 随机种子
+            n_jobs=-1                      # 使用所有CPU核心
+        )
+        
+        self.model_name = model_name
+        self.feature_names = None
+        
+        # 创建模型保存目录
+        if not os.path.exists("model/checkpoints"):
+            os.makedirs("model/checkpoints")
+        if not os.path.exists("model/final_models"):
+            os.makedirs("model/final_models")
+            
+        self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pkl"
+        self.model_path = f"model/final_models/{self.model_name}.pkl"
+
+    def fit(self, train_loader, epochs=None, patience=None):
+        """
+        训练随机森林模型
+        注意：随机森林不需要epochs和patience参数
+        """
+        X_train, y_train = self._extract_data_from_loader(train_loader)
+        self.model.fit(X_train, y_train)
+        self.save_model()
+        print(f"Random Forest trained with {len(X_train)} samples")
+
+    def predict(self, test_loader, label_mean=None, label_std=None):
+        """预测并返回与PyTorch模型相同的格式"""
+        X_test, y_test = self._extract_data_from_loader(test_loader)
+        pred = self.model.predict(X_test)
+        
+        # 转换为与PyTorch模型相同的格式
+        if pred.ndim == 1:
+            pred = pred.reshape(-1, 1)
+        if y_test.ndim == 1:
+            y_test = y_test.reshape(-1, 1)
+            
+        return pred, y_test
+
+    def evaluate(self, test_loader, target=3):
+        """计算R²分数"""
+        from sklearn.metrics import r2_score
+        X_test, y_test = self._extract_data_from_loader(test_loader, target)
+        pred = self.model.predict(X_test)
+        return r2_score(y_test, pred)
+
+    def _extract_data_from_loader(self, data_loader, target=3):
+        """从PyTorch DataLoader中提取数据"""
+        X_list = []
+        y_list = []
+        
+        for batch in data_loader:
+            X_batch = batch[0].numpy()  # 特征
+            y_batch = batch[target].numpy()  # 目标
+            
+            X_list.append(X_batch)
+            y_list.append(y_batch)
+        
+        X = np.concatenate(X_list, axis=0)
+        y = np.concatenate(y_list, axis=0)
+        
+        # 确保y是一维数组（sklearn期望的格式）
+        if y.ndim > 1:
+            y = y.ravel()
+            
+        return X, y
+
+    def reset_model(self):
+        """重置模型（重新初始化）"""
+        from sklearn.ensemble import RandomForestRegressor
+        
+        # 保存原始参数
+        params = self.model.get_params()
+        self.model = RandomForestRegressor(**params)
+        print("Random Forest model reset")
+
+    def save_model(self, path=None):
+        """保存模型"""
+        import joblib
+        if path is None:
+            path = self.model_path
+        
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        joblib.dump(self.model, path)
+        print(f"Model successfully saved to {path}")
+
+    def load_model(self, path=None):
+        """加载模型"""
+        import joblib
+        if path is None:
+            path = self.model_path
+            
+        if os.path.exists(path):
+            self.model = joblib.load(path)
+            print(f"Model successfully loaded from {path}")
+        else:
+            print(f"Model file {path} not found")
+
+    def get_feature_importance(self):
+        """获取特征重要性"""
+        if hasattr(self.model, 'feature_importances_'):
+            return self.model.feature_importances_
+        else:
+            print("Model not trained yet")
+            return None
