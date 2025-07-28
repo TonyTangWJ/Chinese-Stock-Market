@@ -70,20 +70,18 @@ class RollingTrainTest:
             # 保存关键指标
             self.profit_rate = metrics['mean_return']
             self.sharpe_ratio = metrics['sharpe_ratio']
-            self.max_drawdown = metrics['max_drawdown']
             
             # 保存到CSV
             file_path = '../CSV/profit_indicators.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('model_name,mean_return,sharpe_ratio,max_drawdown,annualized_return,annualized_volatility,win_rate\n')
-                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
+                    f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,win_rate\n')
+                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
             
             print(f"Monthly Return: {metrics['mean_return']:.4f}")
             print(f"Annualized Return: {metrics['annualized_return']:.4f}")
             print(f"Annualized Sharpe Ratio: {metrics['sharpe_ratio']:.4f}")
-            print(f"Max Drawdown: {metrics['max_drawdown']:.4f}")
         else:
 
             pass
@@ -105,20 +103,18 @@ class RollingTrainTest:
             # 保存关键指标
             self.profit_rate_top10 = metrics['mean_return']
             self.sharpe_ratio_top10 = metrics['sharpe_ratio']
-            self.max_drawdown_top10 = metrics['max_drawdown']
             
             # 保存到CSV
             file_path = '../CSV/profit_indicators_top10.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('model_name,mean_return,sharpe_ratio,max_drawdown,annualized_return,annualized_volatility,win_rate\n')
-                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
+                    f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,win_rate\n')
+                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
             
             print(f"Monthly Return (Top 10): {metrics['mean_return']:.4f}")
             print(f"Annualized Return (Top 10): {metrics['annualized_return']:.4f}")
             print(f"Annualized Sharpe Ratio (Top 10): {metrics['sharpe_ratio']:.4f}")
-            print(f"Max Drawdown (Top 10): {metrics['max_drawdown']:.4f}")
         else:
             pass
 
