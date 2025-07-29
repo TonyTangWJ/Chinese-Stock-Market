@@ -414,7 +414,7 @@ class NN(nn.Module):
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=0.1)
+                nn.init.normal_(module.weight)
                 nn.init.constant_(module.bias, 0)
 
     def forward(self, x):
@@ -683,3 +683,439 @@ class RandomForest:
         else:
             print("Model not trained yet")
             return None
+    
+
+class K_Means_NN(nn.Module):
+    def __init__(self, input_dim, output_dim=1, n_clusters=10, layer=2, model_name="K_Means_NN"):
+        super(K_Means_NN, self).__init__()
+        
+        from sklearn.cluster import KMeans
+        
+        self.input_dim = input_dim
+        self.n_clusters = n_clusters
+        self.model_name = model_name + f"_{layer}Layers"
+        
+        # K-means聚类器
+        self.kmeans = KMeans(
+            n_clusters=self.n_clusters,      # 聚类数量
+            init='k-means++',           # 初始化方法（'k-means++', 'random'）
+            n_init='auto',                  # 不同初始化的运行次数
+            max_iter=300,               # 单次运行的最大迭代次数
+            tol=1e-4,                   # 收敛容忍度
+            random_state=42,            # 随机种子
+            algorithm='lloyd',          # 算法类型（'lloyd', 'elkan'）
+            copy_x=True                # 是否复制数据
+        )
+        self.cluster_labels = None
+        self.is_fitted = False
+        
+        # 为每个聚类创建独立的神经网络
+        self.cluster_models = nn.ModuleDict()
+        for i in range(n_clusters):
+            self.cluster_models[f'cluster_{i}'] = self._create_network(input_dim, output_dim, layer)
+        
+        # 优化器和损失函数
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.loss_fn = nn.MSELoss()
+        
+        # 设备设置
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
+        self.to(self.device)
+        
+        # 模型保存路径
+        if not os.path.exists("model/checkpoints"):
+            os.makedirs("model/checkpoints")
+        if not os.path.exists("model/final_models"):
+            os.makedirs("model/final_models")
+        self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
+        self.model_path = f"model/final_models/{self.model_name}.pth"
+
+    def _create_network(self, input_dim, output_dim, layer):
+        """为每个聚类创建独立的神经网络"""
+        if layer == 1:
+            return nn.Sequential(
+                nn.Linear(input_dim, output_dim),
+                nn.Tanh()
+            )
+        elif layer == 2:
+            return nn.Sequential(
+                nn.Linear(input_dim, 32),
+                nn.LeakyReLU(0.1),
+                nn.Linear(32, output_dim),
+                nn.Tanh()
+            )
+        elif layer == 3:
+            return nn.Sequential(
+                nn.Linear(input_dim, 32),
+                nn.LeakyReLU(0.1),
+                nn.Linear(32, 16),
+                nn.LeakyReLU(0.1),
+                nn.Linear(16, output_dim),
+                nn.Tanh()
+            )
+        elif layer == 4:
+            return nn.Sequential(
+                nn.Linear(input_dim, 32),
+                nn.LeakyReLU(0.1),
+                nn.Linear(32, 16),
+                nn.LeakyReLU(0.1),
+                nn.Linear(16, 8),
+                nn.LeakyReLU(0.1),
+                nn.Linear(8, output_dim),
+                nn.Tanh()
+            )
+        elif layer == 5:
+            return nn.Sequential(
+                nn.Linear(input_dim, 32),
+                nn.LeakyReLU(0.1),
+                nn.Linear(32, 16),
+                nn.LeakyReLU(0.1),
+                nn.Linear(16, 8),
+                nn.LeakyReLU(0.1),
+                nn.Linear(8, 4),
+                nn.LeakyReLU(0.1),
+                nn.Linear(4, output_dim),
+                nn.Tanh()
+            )
+        else:
+            raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
+
+    def _initialize_weights(self):
+        """初始化所有聚类模型的权重"""
+        for cluster_model in self.cluster_models.values():
+            for module in cluster_model.modules():
+                if isinstance(module, nn.Linear):
+                    nn.init.normal_(module.weight)
+                    nn.init.constant_(module.bias, 0)
+
+    def fit_kmeans(self, train_loader):
+        """训练K-means聚类器"""
+        print("Fitting K-means clustering...")
+        
+        # 提取所有训练数据
+        X_all = []
+        for batch in train_loader:
+            X_batch = batch[0].cpu().numpy()
+            X_all.append(X_batch)
+        
+        X_all = np.concatenate(X_all, axis=0)
+        
+        # 训练K-means
+        self.cluster_labels = self.kmeans.fit_predict(X_all)
+        self.is_fitted = True
+        
+        # 打印聚类信息
+        unique, counts = np.unique(self.cluster_labels, return_counts=True)
+        for cluster_id, count in zip(unique, counts):
+            print(f"Cluster {cluster_id}: {count} samples ({count/len(X_all)*100:.1f}%)")
+        
+        return self.cluster_labels
+
+    def get_cluster_data(self, data_loader, cluster_id):
+        """获取特定聚类的数据"""
+        if not self.is_fitted:
+            raise ValueError("K-means not fitted yet. Call fit_kmeans() first.")
+        
+        cluster_data = []
+        sample_idx = 0
+        
+        for batch in data_loader:
+            batch_size = batch[0].size(0)
+            
+            # 获取当前batch中属于指定聚类的样本
+            batch_cluster_mask = []
+            for i in range(batch_size):
+                if sample_idx + i < len(self.cluster_labels):
+                    batch_cluster_mask.append(self.cluster_labels[sample_idx + i] == cluster_id)
+                else:
+                    batch_cluster_mask.append(False)
+            
+            if any(batch_cluster_mask):
+                # 筛选属于当前聚类的样本
+                cluster_indices = [i for i, mask in enumerate(batch_cluster_mask) if mask]
+                if cluster_indices:
+                    cluster_batch = [batch[j][cluster_indices] for j in range(len(batch))]
+                    cluster_data.append(cluster_batch)
+            
+            sample_idx += batch_size
+        
+        return cluster_data
+
+    def train_step(self, train_loader, target=3, criterion=None):
+        """训练步骤 - 分别训练每个聚类的模型"""
+        if not self.is_fitted:
+            self.fit_kmeans(train_loader)
+        
+        if criterion is None:
+            criterion = self.loss_fn
+        
+        self.train()
+        total_loss = 0.0
+        total_samples = 0
+        
+        # 为每个聚类分别训练
+        for cluster_id in range(self.n_clusters):
+            cluster_data = self.get_cluster_data(train_loader, cluster_id)
+            
+            if not cluster_data:  # 如果当前聚类没有数据，跳过
+                continue
+            
+            cluster_loss = 0.0
+            cluster_samples = 0
+            
+            for batch in cluster_data:
+                if len(batch[0]) == 0:  # 空batch
+                    continue
+                
+                inputs = batch[0].to(self.device)
+                targets = batch[target].to(self.device)
+                
+                if targets.dim() == 1:
+                    targets = targets.unsqueeze(1)
+                
+                self.optimizer.zero_grad()
+                
+                # 使用对应聚类的模型进行前向传播
+                outputs = self.cluster_models[f'cluster_{cluster_id}'](inputs)
+                loss = criterion(outputs, targets)
+                
+                loss.backward()
+                self.optimizer.step()
+                
+                cluster_loss += loss.item()
+                cluster_samples += len(inputs)
+            
+            if cluster_samples > 0:
+                total_loss += cluster_loss
+                total_samples += cluster_samples
+                # print(f"Cluster {cluster_id}: Loss = {cluster_loss/len(cluster_data):.4f}, Samples = {cluster_samples}")
+        
+        return total_loss / max(total_samples, 1)
+
+    def forward(self, x, cluster_id=None):
+        """前向传播"""
+        if cluster_id is not None:
+            return self.cluster_models[f'cluster_{cluster_id}'](x)
+        else:
+            # 如果没有指定聚类，需要先预测聚类
+            x_np = x.cpu().numpy()
+            predicted_clusters = self.kmeans.predict(x_np)
+            
+            outputs = []
+            for i, cluster in enumerate(predicted_clusters):
+                sample_input = x[i:i+1]
+                output = self.cluster_models[f'cluster_{cluster}'](sample_input)
+                outputs.append(output)
+            
+            return torch.cat(outputs, dim=0)
+
+    def predict(self, test_loader, label_mean, label_std):
+        """预测方法"""
+        self.eval()
+        pred_list = []
+        act_list = []
+        
+        with torch.no_grad():
+            for test_data in test_loader:
+                data = test_data[0].to(self.device)
+                
+                # 提取实际值
+                act_high = test_data[1].to(self.device)
+                act_low = test_data[2].to(self.device)
+                act_close = test_data[3].to(self.device)
+                
+                if act_high.dim() == 1:
+                    act_high = act_high.unsqueeze(1)
+                if act_low.dim() == 1:
+                    act_low = act_low.unsqueeze(1)
+                if act_close.dim() == 1:
+                    act_close = act_close.unsqueeze(1)
+                
+                act = torch.cat([act_high, act_low, act_close], dim=1)
+                act = act * label_std + label_mean
+                act_list.append(act.cpu().numpy())
+                
+                # 预测
+                pred = self.forward(data)
+                pred = pred * label_std + label_mean
+                pred_list.append(pred.cpu().numpy())
+        
+        pred = np.concatenate(pred_list, axis=0)
+        act = np.concatenate(act_list, axis=0)
+        return pred, act
+
+    def fit(self, train_loader, epochs=100, resume_training=False, patience=5):
+        """训练主函数 - 添加checkpoint支持"""
+        
+        # 如果需要恢复训练，先加载checkpoint
+        start_epoch = 0
+        if resume_training:
+            start_epoch = self._load_checkpoint()
+            print(f"Resuming training from epoch {start_epoch + 1}")
+        else:
+            # 首先训练K-means（只在新训练时）
+            if not self.is_fitted:
+                self.fit_kmeans(train_loader)
+            self._initialize_weights()
+        
+        no_improvement_count = 0
+        prev_loss = float('inf')
+        
+        print(f"Training {self.model_name} with {self.n_clusters} clusters...")
+        
+        for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
+            train_loss = self.train_step(train_loader)
+            
+            # 每10个epoch保存checkpoint和打印信息
+            if (epoch + 1) % 10 == 0:
+                self._save_checkpoint(epoch)
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+            
+            # 早停机制
+            if round(train_loss, 4) < round(prev_loss, 4):
+                prev_loss = train_loss
+                no_improvement_count = 0
+            else:
+                no_improvement_count += 1
+                if no_improvement_count >= patience:
+                    print(f"Early stopping at epoch {epoch + 1}")
+                    break
+        
+        # 训练完成后保存最终模型
+        self.save_model()
+        print(f"Training completed for {self.model_name}")
+
+    def save_model(self, path=None):
+        """保存最终模型"""
+        if path is None:
+            path = self.model_path
+        
+        save_dict = {
+            'state_dict': self.state_dict(),
+            'kmeans': self.kmeans,
+            'cluster_labels': self.cluster_labels,
+            'is_fitted': self.is_fitted,
+            'n_clusters': self.n_clusters,
+            'model_name': self.model_name,
+            'input_dim': self.input_dim
+        }
+        
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(save_dict, path)
+        print(f"Model successfully saved to {path}")
+
+    def load_model(self, path=None):
+        """加载最终模型"""
+        if path is None:
+            path = self.model_path
+        
+        if os.path.exists(path):
+            try:
+                save_dict = torch.load(path, map_location=self.device, weights_only=False)
+                
+                self.load_state_dict(save_dict['state_dict'])
+                self.kmeans = save_dict['kmeans']
+                self.cluster_labels = save_dict['cluster_labels']
+                self.is_fitted = save_dict['is_fitted']
+                
+                print(f"Model successfully loaded from {path}")
+                return True
+            except Exception as e:
+                print(f"Error loading model from {path}: {e}")
+                return False
+        else:
+            print(f"Model file {path} not found")
+            return False
+
+    def reset_model(self):
+        """重置模型"""
+        self._initialize_weights()
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.is_fitted = False
+        self.cluster_labels = None
+
+    def get_cluster_info(self):
+        """获取聚类信息"""
+        if not self.is_fitted:
+            return "K-means not fitted yet"
+        
+        unique, counts = np.unique(self.cluster_labels, return_counts=True)
+        info = f"K-means clustering with {self.n_clusters} clusters:\n"
+        for cluster_id, count in zip(unique, counts):
+            info += f"  Cluster {cluster_id}: {count} samples ({count/len(self.cluster_labels)*100:.1f}%)\n"
+        return info
+    
+    def _save_checkpoint(self, epoch):
+        """保存训练检查点"""
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'loss': self.loss_fn,
+            'kmeans': self.kmeans,
+            'cluster_labels': self.cluster_labels,
+            'is_fitted': self.is_fitted,
+            'n_clusters': self.n_clusters,
+            'model_name': self.model_name
+        }
+        
+        os.makedirs(os.path.dirname(self.checkpoint_path), exist_ok=True)
+        torch.save(checkpoint, self.checkpoint_path)
+        print(f"Checkpoint saved at epoch {epoch + 1}")
+
+    def _load_checkpoint(self):
+        """加载训练检查点"""
+        if os.path.exists(self.checkpoint_path):
+            try:
+                checkpoint = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
+                
+                # 加载模型状态
+                self.load_state_dict(checkpoint['model_state_dict'])
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                
+                # 加载K-means相关信息
+                self.kmeans = checkpoint['kmeans']
+                self.cluster_labels = checkpoint['cluster_labels']
+                self.is_fitted = checkpoint['is_fitted']
+                
+                epoch = checkpoint['epoch']
+                print(f"Checkpoint loaded successfully from epoch {epoch + 1}")
+                return epoch
+                
+            except Exception as e:
+                print(f"Error loading checkpoint: {e}")
+                print("Starting training from scratch.")
+                return 0
+        else:
+            print("No checkpoint found. Starting from scratch.")
+            return 0
+    
+    def evaluate(self, test_loader, target=3):
+        """评估模型性能"""
+        self.eval()
+        total_sse = 0.0
+        total_ss = 0.0
+        
+        with torch.no_grad():
+            for test_data in test_loader:
+                inputs = test_data[0].to(self.device)
+                targets = test_data[target].to(self.device)
+                
+                if targets.dim() == 1:
+                    targets = targets.unsqueeze(1)
+                
+                outputs = self.forward(inputs)
+                
+                # 计算平方误差和总平方和
+                sse = torch.sum((targets - outputs) ** 2)
+                ss = torch.sum(targets ** 2)
+                total_sse += sse.item()
+                total_ss += ss.item()
+        
+        if total_ss < 1e-8:
+            return 0
+        else:
+            return 1 - total_sse / total_ss

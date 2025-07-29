@@ -13,7 +13,7 @@
             "connectionTimeout": 30,
             "username": "root",
             "database": "csm",
-            "password": "19990509twj"
+            "password": "Password123"
         }
     ],
     "notebook.defaultFormatter": null,
