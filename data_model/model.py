@@ -353,40 +353,40 @@ class NN(nn.Module):
         elif layer == 2:
             self.layers = nn.Sequential(
                 nn.Linear(input_dim, 32),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(32, output_dim),
                 nn.Tanh()
             )
         elif layer == 3:
             self.layers = nn.Sequential(
                 nn.Linear(input_dim, 32),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(16, output_dim),
                 nn.Tanh()
             )
         elif layer == 4:
             self.layers = nn.Sequential(
                 nn.Linear(input_dim, 32),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(16, 8),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(8, output_dim),
                 nn.Tanh()
             )
         elif layer == 5:
             self.layers = nn.Sequential(
                 nn.Linear(input_dim, 32),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(16, 8),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(8, 4),
-                nn.Sigmoid(),
+                nn.LeakyReLU(0.1),
                 nn.Linear(4, output_dim),
                 nn.Tanh()
             )
