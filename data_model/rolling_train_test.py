@@ -6,7 +6,7 @@ from utils import RiskMetrics
 
 
 class RollingTrainTest:
-    def __init__(self, model, Data, train_size=0.5, test_size=0.1, epochs=50, patience=5):
+    def __init__(self, model, Data, train_size=0.5, test_size=0.1, epochs=50, patience=5, criterion=None):
         self.model = model
         self.model_name = self.model.model_name
         self.Data = Data
@@ -15,6 +15,7 @@ class RollingTrainTest:
         self.test_size = test_size
         self.epochs = epochs
         self.patience = patience
+        self.criterion = criterion
 
     def run(self):
         self.predictability = []
@@ -25,7 +26,7 @@ class RollingTrainTest:
         for _ in range(num_iterations):
             self.train_loader = self.Data.get_train_loader(train_size=self.train_size)
             self.test_loader = self.Data.get_test_loader(test_size=self.test_size)
-            self.model.fit(self.train_loader, epochs=self.epochs, patience=self.patience)
+            self.model.fit(self.train_loader, epochs=self.epochs, patience=self.patience, criterion=self.criterion)
             result= round(self.model.evaluate(self.test_loader),4)
             label_mean = self.Data.dataloader.label_mean
             label_std = self.Data.dataloader.label_std

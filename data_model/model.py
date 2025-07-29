@@ -55,7 +55,7 @@ class LinearRegression(nn.Module):
             total_loss += loss.item()
         return total_loss / len(train_loader)
 
-    def fit(self, train_loader, epochs=100, resume_training=False, patience=5):
+    def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion=None):
         start_epoch = 0
         no_improvement_count = 0
         if resume_training:
@@ -228,7 +228,7 @@ class ElasticNet(nn.Module):
             total_loss += loss.item()
         return total_loss / len(train_loader)
 
-    def fit(self, train_loader, epochs=100, resume_training=False, patience=5):
+    def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion=None):
         start_epoch = 0
         no_improvement_count = 0
         if resume_training:
@@ -455,7 +455,7 @@ class NN(nn.Module):
             total_loss += loss.item()
         return total_loss / len(train_loader)
 
-    def fit(self, train_loader, epochs=100, resume_training=False, patience=5):
+    def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion=None):
         start_epoch = 0
         no_improvement_count = 0
         if resume_training:
@@ -594,7 +594,7 @@ class RandomForest:
         self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pkl"
         self.model_path = f"model/final_models/{self.model_name}.pkl"
 
-    def fit(self, train_loader, epochs=None, patience=None):
+    def fit(self, train_loader, epochs=None, patience=None, criterion=None):
         """
         训练随机森林模型
         注意：随机森林不需要epochs和patience参数
@@ -686,14 +686,14 @@ class RandomForest:
     
 
 class K_Means_NN(nn.Module):
-    def __init__(self, input_dim, output_dim=1, n_clusters=10, layer=2, model_name="K_Means_NN"):
+    def __init__(self, input_dim, output_dim=1, n_clusters=10, layer=2, alpha=1.0, l1_ratio=0.5, model_name="K_Means_NN"):
         super(K_Means_NN, self).__init__()
         
         from sklearn.cluster import KMeans
         
         self.input_dim = input_dim
         self.n_clusters = n_clusters
-        self.model_name = model_name + f"_{layer}Layers"
+        self.model_name = model_name + f"_{layer}Layers_{n_clusters}Clusters"
         
         # K-means聚类器
         self.kmeans = KMeans(
@@ -708,6 +708,8 @@ class K_Means_NN(nn.Module):
         )
         self.cluster_labels = None
         self.is_fitted = False
+        self.alpha = alpha
+        self.l1_ratio = l1_ratio
         
         # 为每个聚类创建独立的神经网络
         self.cluster_models = nn.ModuleDict()
@@ -855,9 +857,7 @@ class K_Means_NN(nn.Module):
                 cluster_dataset = TensorDataset(*cluster_tensors)
                 cluster_dataloader = DataLoader(
                     cluster_dataset, 
-                    batch_size=original_dataloader.batch_size,
-                    shuffle=True,
-                    drop_last=True  # 丢弃不完整的batch
+                    batch_size=original_dataloader.batch_size
                 )
                 cluster_dataloaders[cluster_id] = cluster_dataloader
     
@@ -870,6 +870,8 @@ class K_Means_NN(nn.Module):
         
         if criterion is None:
             criterion = self.loss_fn
+        elif criterion == 'elastic_net':
+            criterion = self.elastic_net_loss
         
         self.train()
         total_loss = 0.0
@@ -968,7 +970,7 @@ class K_Means_NN(nn.Module):
         act = np.concatenate(act_list, axis=0)
         return pred, act
 
-    def fit(self, train_loader, epochs=50, resume_training=False, patience=5):
+    def fit(self, train_loader, epochs=50, resume_training=False, patience=5, criterion=None):
         """训练主函数 - 添加checkpoint支持"""
         
         # 如果需要恢复训练，先加载checkpoint
@@ -985,10 +987,10 @@ class K_Means_NN(nn.Module):
         no_improvement_count = 0
         prev_loss = float('inf')
         
-        print(f"Training {self.model_name} with {self.n_clusters} clusters...")
+        # print(f"Training {self.model_name} with {self.n_clusters} clusters...")
         
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
-            train_loss = self.train_step(train_loader)
+            train_loss = self.train_step(train_loader, target=3, criterion=criterion)
             
             # 每10个epoch保存checkpoint和打印信息
             if (epoch + 1) % 10 == 0:
@@ -1008,6 +1010,7 @@ class K_Means_NN(nn.Module):
         # 训练完成后保存最终模型
         self.save_model()
         print(f"Training completed for {self.model_name}")
+        self.is_fitted = False
 
     def save_model(self, path=None):
         """保存最终模型"""
@@ -1143,3 +1146,15 @@ class K_Means_NN(nn.Module):
             return 0
         else:
             return 1 - total_sse / total_ss
+        
+    def elastic_net_loss(self, outputs, targets):
+        mse_loss = self.loss_fn(outputs, targets)
+        l1_reg = 0
+        l2_reg = 0
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                l1_reg += torch.sum(torch.abs(module.weight))
+                l2_reg += torch.sum(module.weight ** 2)
+        
+        elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
+        return mse_loss + elastic_reg
