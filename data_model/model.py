@@ -814,38 +814,57 @@ class K_Means_NN(nn.Module):
         
         return self.cluster_labels
 
-    def get_cluster_data(self, data_loader, cluster_id):
-        """获取特定聚类的数据"""
+    def create_cluster_dataloaders(self, original_dataloader):
+        """为每个聚类创建独立的DataLoader，保持原始batch_size"""
         if not self.is_fitted:
-            raise ValueError("K-means not fitted yet. Call fit_kmeans() first.")
+            self.fit_kmeans(original_dataloader)
         
-        cluster_data = []
-        sample_idx = 0
+        from torch.utils.data import TensorDataset, DataLoader
         
-        for batch in data_loader:
-            batch_size = batch[0].size(0)
-            
-            # 获取当前batch中属于指定聚类的样本
-            batch_cluster_mask = []
-            for i in range(batch_size):
-                if sample_idx + i < len(self.cluster_labels):
-                    batch_cluster_mask.append(self.cluster_labels[sample_idx + i] == cluster_id)
-                else:
-                    batch_cluster_mask.append(False)
-            
-            if any(batch_cluster_mask):
-                # 筛选属于当前聚类的样本
-                cluster_indices = [i for i, mask in enumerate(batch_cluster_mask) if mask]
-                if cluster_indices:
-                    cluster_batch = [batch[j][cluster_indices] for j in range(len(batch))]
-                    cluster_data.append(cluster_batch)
-            
-            sample_idx += batch_size
+        # 提取所有数据
+        all_data = []
+        for batch in original_dataloader:
+            all_data.append(batch)
         
-        return cluster_data
+        # 按聚类分组数据
+        cluster_dataloaders = {}
+        
+        for cluster_id in range(self.n_clusters):
+            cluster_samples = []
+            sample_idx = 0
+            
+            for batch in all_data:
+                batch_size = batch[0].size(0)
+                
+                for i in range(batch_size):
+                    if sample_idx + i < len(self.cluster_labels):
+                        if self.cluster_labels[sample_idx + i] == cluster_id:
+                            # 收集该样本
+                            sample = [batch[j][i] for j in range(len(batch))]
+                            cluster_samples.append(sample)
+                
+                sample_idx += batch_size
+            
+            if cluster_samples:
+                # 创建该聚类的TensorDataset
+                cluster_tensors = []
+                for j in range(len(cluster_samples[0])):
+                    tensor_data = torch.stack([sample[j] for sample in cluster_samples])
+                    cluster_tensors.append(tensor_data)
+                
+                cluster_dataset = TensorDataset(*cluster_tensors)
+                cluster_dataloader = DataLoader(
+                    cluster_dataset, 
+                    batch_size=original_dataloader.batch_size,
+                    shuffle=True,
+                    drop_last=True  # 丢弃不完整的batch
+                )
+                cluster_dataloaders[cluster_id] = cluster_dataloader
+    
+        return cluster_dataloaders
 
     def train_step(self, train_loader, target=3, criterion=None):
-        """训练步骤 - 分别训练每个聚类的模型"""
+        """训练步骤 - 使用固定batch size的聚类数据"""
         if not self.is_fitted:
             self.fit_kmeans(train_loader)
         
@@ -856,20 +875,22 @@ class K_Means_NN(nn.Module):
         total_loss = 0.0
         total_samples = 0
         
+        # 创建每个聚类的DataLoader（只在第一次调用时创建）
+        if not hasattr(self, 'cluster_dataloaders') or not self.cluster_dataloaders:
+            print("Creating cluster dataloaders with fixed batch size...")
+            self.cluster_dataloaders = self.create_cluster_dataloaders(train_loader)
+        
         # 为每个聚类分别训练
         for cluster_id in range(self.n_clusters):
-            cluster_data = self.get_cluster_data(train_loader, cluster_id)
-            
-            if not cluster_data:  # 如果当前聚类没有数据，跳过
+            if cluster_id not in self.cluster_dataloaders:
+                print(f"Cluster {cluster_id}: No data or insufficient samples")
                 continue
-            
+                
+            cluster_dataloader = self.cluster_dataloaders[cluster_id]
             cluster_loss = 0.0
             cluster_samples = 0
             
-            for batch in cluster_data:
-                if len(batch[0]) == 0:  # 空batch
-                    continue
-                
+            for batch in cluster_dataloader:
                 inputs = batch[0].to(self.device)
                 targets = batch[target].to(self.device)
                 
@@ -878,7 +899,7 @@ class K_Means_NN(nn.Module):
                 
                 self.optimizer.zero_grad()
                 
-                # 使用对应聚类的模型进行前向传播
+                # 使用对应聚类的模型
                 outputs = self.cluster_models[f'cluster_{cluster_id}'](inputs)
                 loss = criterion(outputs, targets)
                 
@@ -891,7 +912,7 @@ class K_Means_NN(nn.Module):
             if cluster_samples > 0:
                 total_loss += cluster_loss
                 total_samples += cluster_samples
-                # print(f"Cluster {cluster_id}: Loss = {cluster_loss/len(cluster_data):.4f}, Samples = {cluster_samples}")
+                # print(f"Cluster {cluster_id}: Loss = {cluster_loss/len(cluster_dataloader):.4f}, Samples = {cluster_samples}")
         
         return total_loss / max(total_samples, 1)
 
@@ -947,7 +968,7 @@ class K_Means_NN(nn.Module):
         act = np.concatenate(act_list, axis=0)
         return pred, act
 
-    def fit(self, train_loader, epochs=100, resume_training=False, patience=5):
+    def fit(self, train_loader, epochs=50, resume_training=False, patience=5):
         """训练主函数 - 添加checkpoint支持"""
         
         # 如果需要恢复训练，先加载checkpoint
@@ -1036,6 +1057,9 @@ class K_Means_NN(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.is_fitted = False
         self.cluster_labels = None
+        # 清除缓存的cluster dataloaders
+        if hasattr(self, 'cluster_dataloaders'):
+            delattr(self, 'cluster_dataloaders')
 
     def get_cluster_info(self):
         """获取聚类信息"""
