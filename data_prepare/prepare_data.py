@@ -92,6 +92,20 @@ class prepare_data:
 
 
 
+class data_engineering:
 
+    def __init__(self):
+        self.factor = pd.read_csv('../CSV/factor.csv')
+        self.label = pd.read_csv('../CSV/label.csv')
+    
 
+    def create_comprehensive_factors(self):
+        """创建综合因子特征 - 修复版本，保留4位小数"""
+        
+        # 读取数据
+        factor_df = self.factor
+        label_df = self.label
+        
+        
 
+        return
