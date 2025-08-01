@@ -112,10 +112,6 @@ class RollingTrainTest:
                 if mode == 'w':
                     f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,win_rate\n')
                 f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
-            
-            print(f"Monthly Return (Top 10): {metrics['mean_return']:.4f}")
-            print(f"Annualized Return (Top 10): {metrics['annualized_return']:.4f}")
-            print(f"Annualized Sharpe Ratio (Top 10): {metrics['sharpe_ratio']:.4f}")
         else:
             pass
 

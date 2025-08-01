@@ -1,1 +1,1 @@
-This note is mainly used for machine learning related codes.
+1.数据加载时进一步去除异常值,保留0.01~0.99
