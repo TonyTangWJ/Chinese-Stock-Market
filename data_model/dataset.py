@@ -17,7 +17,7 @@ class MyDataset(Dataset):
         self.data_origin.drop(columns = ['ts_code', 'trade_date'], inplace=True)
         self.data_origin = self.data_origin.applymap(lambda x: float(x))
         # winsorize the data
-        self.data_origin = self.winsorize_data(self.data_origin, lower=0.1, upper=0.9)
+        # self.data_origin = self.winsorize_data(self.data_origin, lower=0.1, upper=0.9)
         # convert to tensor
         if torch.cuda.is_available():
             self.data_origin = torch.tensor(self.data_origin.values, dtype=torch.float32, device='cuda:0')

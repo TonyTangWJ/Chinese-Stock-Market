@@ -9,11 +9,14 @@ from utils import ClippedLeakyReLU, ScaledTanh
 class LinearRegression(nn.Module):
     def __init__(self, input_dim, output_dim=1, target =3, model_name = "linear_regression"):
         super(LinearRegression, self).__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
-        nn.init.normal_(self.linear.weight, mean=0, std=1)
-        nn.init.constant_(self.linear.bias, 0)
+        
+        self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
+                nn.Linear(input_dim, output_dim)
+            )
+        
+        self._initialize_weights()
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
-        self.loss_fn = nn.MSELoss()
         self.target = target
         self.model_name = model_name
         if not os.path.exists("model/checkpoints"):
@@ -29,19 +32,24 @@ class LinearRegression(nn.Module):
         self.to(self.device)
 
     def forward(self, x):
-        return self.linear(x)
+        return self.layers(x)
     
-    def reset_model(self):
-        self.linear.reset_parameters()
-        nn.init.normal_(self.linear.weight, mean=0, std=1)
-        nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
-        return
+
+    def _initialize_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0, std=1)
+                nn.init.constant_(module.bias, 0)
 
     
     def train_step(self, train_loader,criterion=None):
         if criterion is None:
-            criterion = self.loss_fn
+            criterion = nn.MSELoss()
+        elif criterion == "elastic_net":
+            criterion = self.elastic_net_loss
+        else:
+            raise ValueError("Unsupported criterion. Supported values are 'elastic_net', 'mse_rs', or None (default MSE).")
+
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
@@ -56,6 +64,7 @@ class LinearRegression(nn.Module):
             self.optimizer.step()
             total_loss += loss.item()
         return total_loss / len(train_loader)
+
 
     def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion=None):
         start_epoch = 0
@@ -114,7 +123,8 @@ class LinearRegression(nn.Module):
         pred = np.concatenate(pred_list, axis=0)
         act = np.concatenate(act_list, axis=0)
         return pred, act
-        
+
+
     # nondemeaned R^2 evaluation
     def evaluate(self, test_loader):
         self.eval()
@@ -139,6 +149,20 @@ class LinearRegression(nn.Module):
             return 0
         else:
             return 1 - total_sse / total_ss
+
+  
+    def elastic_net_loss(self, outputs, targets):
+        mse_loss = self.loss_fn(outputs, targets)
+        l1_reg = 0
+        l2_reg = 0
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                l1_reg += torch.sum(torch.abs(module.weight))
+                l2_reg += torch.sum(module.weight ** 2)
+        
+        elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
+        return mse_loss + elastic_reg
+
 
     def _save_checkpoint(self, epoch):
         checkpoint = {
@@ -461,8 +485,9 @@ class NN(nn.Module):
 
     def reset_model(self):
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         return
+
 
     def train_step(self, train_loader, criterion=None):
         if criterion is None:
@@ -478,10 +503,6 @@ class NN(nn.Module):
         for train_data in train_loader:
             inputs = train_data[0].to(self.device)
             targets = train_data[self.target].to(self.device)
-            
-            if inputs.size(0) <= 1:
-                continue  
-            
             if targets.dim() == 1:
                 targets = targets.unsqueeze(1)
             self.optimizer.zero_grad()
@@ -491,6 +512,7 @@ class NN(nn.Module):
             self.optimizer.step()
             total_loss += loss.item()
         return total_loss / len(train_loader)
+
 
     def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion=None):
         start_epoch = 0
@@ -502,11 +524,11 @@ class NN(nn.Module):
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader, criterion)
-            # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
-                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+                # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4):
@@ -574,6 +596,55 @@ class NN(nn.Module):
             return 0
         else:
             return 1 - total_sse / total_ss
+
+    # def evaluate(self, test_loader):
+    #     self.eval()
+    #     total_sse = 0.0
+    #     total_ss = 0.0
+    #     all_outputs = []
+    #     all_targets = []
+        
+    #     with torch.no_grad():
+    #         for data in test_loader:
+    #             inputs = data[0].to(self.device)
+    #             targets = data[self.target].to(self.device)
+                
+    #             if targets.dim() == 1:
+    #                 targets = targets.unsqueeze(1)
+    #             outputs = self(inputs)
+
+    #             targets = torch.clamp(targets, min=0)
+    #             outputs = torch.clamp(outputs, min=0)
+    #             # 计算指标
+    #             sse = torch.sum((targets - outputs) ** 2)
+    #             ss = torch.sum(targets ** 2)
+    #             total_sse += sse.item()
+    #             total_ss += ss.item()
+                
+    #             # 保存结果
+    #             all_outputs.append(outputs.cpu())
+    #             all_targets.append(targets.cpu())
+        
+    #     # 计算R²
+    #     r_squared = 0 if total_ss < 1e-8 else 1 - total_sse / total_ss
+        
+    #     # 保存预测结果
+    #     if all_outputs and all_targets:
+    #         self._save_predictions(all_outputs, all_targets)
+        
+    #     return r_squared
+    
+    # def _save_predictions(self, outputs, targets):
+    #     combined_outputs = torch.cat(outputs, dim=0).numpy().flatten()
+    #     combined_targets = torch.cat(targets, dim=0).numpy().flatten()
+        
+    #     os.makedirs('../CSV', exist_ok=True)
+    #     np.savetxt('../CSV/outputs_targets.csv', 
+    #               np.column_stack((combined_outputs, combined_targets)),
+    #               delimiter=',', 
+    #               header='outputs,targets', 
+    #               comments='',
+    #               fmt='%.4f')
 
 
     def _save_checkpoint(self, epoch):

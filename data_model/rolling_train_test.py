@@ -59,6 +59,7 @@ class RollingTrainTest:
                 f.write('model_name,predictability\n')
             f.write(f'{self.model_name},{sum(self.predictability) / len(self.predictability):.4f}\n')
 
+
     def backtest(self, trade_mode=1, data_frequency='monthly'):
         if trade_mode == 1:
             pred = self.pred[:,-1]
@@ -82,11 +83,8 @@ class RollingTrainTest:
                 if mode == 'w':
                     f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,win_rate\n')
                 f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
-            
         else:
-
             pass
-
         return
     
     def backtest_top10(self, trade_mode = 1, data_frequency='monthly'):

@@ -13,6 +13,7 @@ class LoadData():
                                        num_workers=num_workers, 
                                        train_size=train_size, 
                                        test_size=test_size)
+    
 
     def get_train_loader(self, train_size=None):
         if train_size is not None:
