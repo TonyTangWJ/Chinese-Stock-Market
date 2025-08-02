@@ -661,11 +661,23 @@ class RandomForest:
         return pred, y_test
 
     def evaluate(self, test_loader):
-        """计算R²分数"""
-        from sklearn.metrics import r2_score
+        """计算 nondemeaned R²分数"""
         X_test, y_test = self._extract_data_from_loader(test_loader)
         pred = self.model.predict(X_test)
-        return r2_score(y_test, pred)
+        
+        # 确保预测值和目标值非负（与其他模型保持一致）
+        y_test = np.clip(y_test, a_min=0, a_max=None)
+        pred = np.clip(pred, a_min=0, a_max=None)
+        
+        # 计算 nondemeaned R²
+        # R² = 1 - SSE/SS (其中 SS = Σ(yi)², 不减去均值)
+        sse = np.sum((y_test - pred) ** 2)  # 残差平方和
+        ss = np.sum(y_test ** 2)            # 总平方和（不去均值）
+        
+        if ss < 1e-8:
+            return 0
+        else:
+            return 1 - sse / ss
 
     def _extract_data_from_loader(self, data_loader):
         """从PyTorch DataLoader中提取数据"""
