@@ -27,7 +27,9 @@ class RollingTrainTest:
             self.train_loader = self.Data.get_train_loader(train_size=self.train_size)
             self.test_loader = self.Data.get_test_loader(test_size=self.test_size)
             self.model.fit(self.train_loader, epochs=self.epochs, patience=self.patience, criterion=self.criterion)
+            self.model.load_model()  # Load the best model after training
             result= round(self.model.evaluate(self.test_loader),4)
+            result_train = round(self.model.evaluate(self.train_loader),4)
             label_mean = self.Data.dataloader.label_mean
             label_std = self.Data.dataloader.label_std
             pred, act = self.model.predict(self.test_loader, label_mean, label_std)
@@ -43,7 +45,8 @@ class RollingTrainTest:
             # store the actual values
             self.act_list.append(act)
             self.predictability.append(result)
-            print (f'No.{_+1} Predictability: {result:.4f}')
+            print (f'No.{_+1} Test Predictability: {result:.4f}')
+            print (f'No.{_+1} Train Predictability: {result_train:.4f}')
             self.train_size += self.test_size
         self.pred = np.concatenate(self.pred_list, axis=0)
         self.act = np.concatenate(self.act_list, axis=0)

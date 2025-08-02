@@ -6,13 +6,14 @@ from tqdm.auto import tqdm
 import numpy as np
 
 class LinearRegression(nn.Module):
-    def __init__(self, input_dim, output_dim=1,model_name = "linear_regression"):
+    def __init__(self, input_dim, output_dim=1, target =3, model_name = "linear_regression"):
         super(LinearRegression, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
         nn.init.normal_(self.linear.weight, mean=0, std=0.1)
         nn.init.constant_(self.linear.bias, 0)
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
+        self.target = target
         self.model_name = model_name
         if not os.path.exists("model/checkpoints"):
             os.makedirs("model/checkpoints")
@@ -37,14 +38,14 @@ class LinearRegression(nn.Module):
         return
 
     
-    def train_step(self, train_loader, target = 3,criterion=None):
+    def train_step(self, train_loader,criterion=None):
         if criterion is None:
             criterion = self.loss_fn
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
             inputs = train_data[0].to(self.device)
-            targets = train_data[target].to(self.device)
+            targets = train_data[self.target].to(self.device)
             if targets.dim() == 1:
                 targets = targets.unsqueeze(1)
             self.optimizer.zero_grad()
@@ -74,13 +75,14 @@ class LinearRegression(nn.Module):
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4):
                 prev_loss = train_loss
-                no_improvement_count = 0    
+                no_improvement_count = 0  
+                self.save_model()  
             else:
                 no_improvement_count += 1
                 if no_improvement_count >= patience:
                     # print("Early stopping triggered due to no improvement in loss.")
                     break
-        self.save_model()
+        
 
     # Predict method & reverse normalization
     def predict(self, test_loader, label_mean, label_std):
@@ -113,14 +115,14 @@ class LinearRegression(nn.Module):
         return pred, act
         
     # nondemeaned R^2 evaluation
-    def evaluate(self, test_loader, target = 3):
+    def evaluate(self, test_loader):
         self.eval()
         total_sse = 0.0
         total_ss = 0.0
         with torch.no_grad():
             for test_data in test_loader:
                 inputs = test_data[0].to(self.device)
-                targets = test_data[target].to(self.device)
+                targets = test_data[self.target].to(self.device)
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
                 outputs = self(inputs)
@@ -159,19 +161,19 @@ class LinearRegression(nn.Module):
             path = self.model_path
         os.makedirs(os.path.dirname(path), exist_ok=True) 
         torch.save(self.state_dict(), path)
-        print (f"Model successfully saved to {path}")
+        # print (f"Model successfully saved to {path}")
 
     def load_model(self, path=None):
         if path is None:
             path = self.model_path
         self.load_state_dict(torch.load(path, map_location=self.device))
-        print (f"Model successfully loaded from {path}")
+        # print (f"Model successfully loaded from {path}")
 
 
 
 
 class ElasticNet(nn.Module):
-    def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, model_name = "ElasticNet"):
+    def __init__(self, input_dim, output_dim=1, target=3, alpha=1.0, l1_ratio=0.5, model_name = "ElasticNet"):
         super(ElasticNet, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
         nn.init.normal_(self.linear.weight, mean=0, std=0.1)
@@ -181,6 +183,7 @@ class ElasticNet(nn.Module):
         self.model_name = model_name
         self.alpha = alpha
         self.l1_ratio = l1_ratio
+        self.target = target
         if not os.path.exists("model/checkpoints"):
             os.makedirs("model/checkpoints")
         if not os.path.exists("model/final_models"):
@@ -210,14 +213,14 @@ class ElasticNet(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         return
 
-    def train_step(self, train_loader, target = 3,criterion=None):
+    def train_step(self, train_loader,criterion=None):
         if criterion is None:
             criterion = self.elastic_net_loss
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
             inputs = train_data[0].to(self.device)
-            targets = train_data[target].to(self.device)
+            targets = train_data[self.target].to(self.device)
             if targets.dim() == 1:
                 targets = targets.unsqueeze(1)
             self.optimizer.zero_grad()
@@ -247,13 +250,14 @@ class ElasticNet(nn.Module):
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4):
                 prev_loss = train_loss
-                no_improvement_count = 0    
+                no_improvement_count = 0   
+                self.save_model() 
             else:
                 no_improvement_count += 1
                 if no_improvement_count >= patience:
                     # print("Early stopping triggered due to no improvement in loss.")
                     break
-        self.save_model()
+        
 
     # Predict method & reverse normalization
     def predict(self, test_loader, label_mean, label_std):
@@ -286,14 +290,14 @@ class ElasticNet(nn.Module):
         return pred, act
         
     # nondemeaned R^2 evaluation
-    def evaluate(self, test_loader, target = 3):
+    def evaluate(self, test_loader):
         self.eval()
         total_sse = 0.0
         total_ss = 0.0
         with torch.no_grad():
             for test_data in test_loader:
                 inputs = test_data[0].to(self.device)
-                targets = test_data[target].to(self.device)
+                targets = test_data[self.target].to(self.device)
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
                 outputs = self(inputs)
@@ -332,23 +336,23 @@ class ElasticNet(nn.Module):
             path = self.model_path
         os.makedirs(os.path.dirname(path), exist_ok=True) 
         torch.save(self.state_dict(), path)
-        print (f"Model successfully saved to {path}")
+        # print (f"Model successfully saved to {path}")
 
     def load_model(self, path=None):
         if path is None:
             path = self.model_path
         self.load_state_dict(torch.load(path, map_location=self.device))
-        print (f"Model successfully loaded from {path}")
+        # print (f"Model successfully loaded from {path}")
     
 
 class NN(nn.Module):
-    def __init__(self, input_dim, output_dim=1, alpha=1.0, l1_ratio=0.5, layer = 2, model_name = "NN"):
+    def __init__(self, input_dim, output_dim=1, target=3, alpha=1.0, l1_ratio=0.5, layer = 2, model_name = "NN"):
         super(NN, self).__init__()
         
         if layer == 1:
             self.layers = nn.Sequential(
                 nn.Linear(input_dim, output_dim),
-                nn.Tanh()
+                nn.LeakyReLU(0.1)
             )
         elif layer == 2:
             self.layers = nn.Sequential(
@@ -364,7 +368,7 @@ class NN(nn.Module):
                 nn.Linear(32, 16),
                 nn.LeakyReLU(0.1),
                 nn.Linear(16, output_dim),
-                nn.Tanh()
+                nn.LeakyReLU(0.3)
             )
         elif layer == 4:
             self.layers = nn.Sequential(
@@ -388,7 +392,7 @@ class NN(nn.Module):
                 nn.Linear(8, 4),
                 nn.LeakyReLU(0.1),
                 nn.Linear(4, output_dim),
-                nn.Tanh()
+                nn.LeakyReLU(0.5)
             )
         else:
             raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
@@ -398,6 +402,7 @@ class NN(nn.Module):
         self.model_name = model_name + f"_{layer}Layers"
         self.alpha = alpha
         self.l1_ratio = l1_ratio
+        self.target = target
         if not os.path.exists("model/checkpoints"):
             os.makedirs("model/checkpoints")
         if not os.path.exists("model/final_models"):
@@ -414,7 +419,7 @@ class NN(nn.Module):
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight)
+                nn.init.normal_(module.weight, mean=0, std=0.1)
                 nn.init.constant_(module.bias, 0)
 
     def forward(self, x):
@@ -432,19 +437,38 @@ class NN(nn.Module):
         elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
         return mse_loss + elastic_reg
 
+    def MSE_RS_loss(self, outputs, targets, epsilon=1e-8):
+        """
+        混合损失：结合MSE和R²
+        """
+        mse_loss = self.loss_fn(outputs, targets)
+        sse = torch.sum((targets - outputs) ** 2)
+        ss = torch.sum(targets ** 2) + epsilon
+        r2_loss = sse / ss
+        # 加权组合
+        return self.alpha * r2_loss + (1 - self.alpha) * mse_loss
+
+
     def reset_model(self):
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         return
 
-    def train_step(self, train_loader, target = 3,criterion=None):
+    def train_step(self, train_loader, criterion=None):
         if criterion is None:
             criterion = self.loss_fn
+        elif criterion == "elastic_net":
+            criterion = self.elastic_net_loss
+        elif criterion == "mse_rs":
+            criterion = self.MSE_RS_loss
+        else:
+            raise ValueError("Unsupported criterion. Supported values are 'elastic_net', 'mse_rs', or None (default MSE).")
+
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
             inputs = train_data[0].to(self.device)
-            targets = train_data[target].to(self.device)
+            targets = train_data[self.target].to(self.device)
             if targets.dim() == 1:
                 targets = targets.unsqueeze(1)
             self.optimizer.zero_grad()
@@ -464,23 +488,25 @@ class NN(nn.Module):
 
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
-            train_loss = self.train_step(train_loader)
-
+            train_loss = self.train_step(train_loader, criterion)
+            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
-                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+                # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4):
                 prev_loss = train_loss
-                no_improvement_count = 0    
+                no_improvement_count = 0  
+                # 保存最佳模型
+                self.save_model()  
             else:
                 no_improvement_count += 1
                 if no_improvement_count >= patience:
                     # print("Early stopping triggered due to no improvement in loss.")
                     break
-        self.save_model()
+        
 
     # Predict method & reverse normalization
     def predict(self, test_loader, label_mean, label_std):
@@ -513,14 +539,14 @@ class NN(nn.Module):
         return pred, act
         
     # nondemeaned R^2 evaluation
-    def evaluate(self, test_loader, target = 3):
+    def evaluate(self, test_loader):
         self.eval()
         total_sse = 0.0
         total_ss = 0.0
         with torch.no_grad():
             for test_data in test_loader:
                 inputs = test_data[0].to(self.device)
-                targets = test_data[target].to(self.device)
+                targets = test_data[self.target].to(self.device)
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
                 outputs = self(inputs)
@@ -559,17 +585,17 @@ class NN(nn.Module):
             path = self.model_path
         os.makedirs(os.path.dirname(path), exist_ok=True) 
         torch.save(self.state_dict(), path)
-        print (f"Model successfully saved to {path}")
+        # print (f"Model successfully saved to {path}")
 
     def load_model(self, path=None):
         if path is None:
             path = self.model_path
         self.load_state_dict(torch.load(path, map_location=self.device))
-        print (f"Model successfully loaded from {path}")
+        # print (f"Model successfully loaded from {path}")
 
 
 class RandomForest:
-    def __init__(self, n_estimators=100, max_depth=None, min_samples_split=5, 
+    def __init__(self, target=3, n_estimators=100, max_depth=None, min_samples_split=5, 
                  min_samples_leaf=2, random_state=42, model_name="RandomForest"):
         from sklearn.ensemble import RandomForestRegressor
         
@@ -584,6 +610,7 @@ class RandomForest:
         
         self.model_name = model_name
         self.feature_names = None
+        self.target = target
         
         # 创建模型保存目录
         if not os.path.exists("model/checkpoints"):
@@ -617,21 +644,21 @@ class RandomForest:
             
         return pred, y_test
 
-    def evaluate(self, test_loader, target=3):
+    def evaluate(self, test_loader):
         """计算R²分数"""
         from sklearn.metrics import r2_score
-        X_test, y_test = self._extract_data_from_loader(test_loader, target)
+        X_test, y_test = self._extract_data_from_loader(test_loader)
         pred = self.model.predict(X_test)
         return r2_score(y_test, pred)
 
-    def _extract_data_from_loader(self, data_loader, target=3):
+    def _extract_data_from_loader(self, data_loader):
         """从PyTorch DataLoader中提取数据"""
         X_list = []
         y_list = []
         
         for batch in data_loader:
             X_batch = batch[0].numpy()  # 特征
-            y_batch = batch[target].numpy()  # 目标
+            y_batch = batch[self.target].numpy()  # 目标
             
             X_list.append(X_batch)
             y_list.append(y_batch)
@@ -672,7 +699,7 @@ class RandomForest:
             
         if os.path.exists(path):
             self.model = joblib.load(path)
-            print(f"Model successfully loaded from {path}")
+            # print(f"Model successfully loaded from {path}")
         else:
             print(f"Model file {path} not found")
 
@@ -686,7 +713,7 @@ class RandomForest:
     
 
 class K_Means_NN(nn.Module):
-    def __init__(self, input_dim, output_dim=1, n_clusters=10, layer=2, alpha=1.0, l1_ratio=0.5, model_name="K_Means_NN"):
+    def __init__(self, input_dim, output_dim=1, target=3, n_clusters=10, layer=2, alpha=1.0, l1_ratio=0.5, model_name="K_Means_NN"):
         super(K_Means_NN, self).__init__()
         
         from sklearn.cluster import KMeans
@@ -710,6 +737,7 @@ class K_Means_NN(nn.Module):
         self.is_fitted = False
         self.alpha = alpha
         self.l1_ratio = l1_ratio
+        self.target = target
         
         # 为每个聚类创建独立的神经网络
         self.cluster_models = nn.ModuleDict()
@@ -790,7 +818,7 @@ class K_Means_NN(nn.Module):
         for cluster_model in self.cluster_models.values():
             for module in cluster_model.modules():
                 if isinstance(module, nn.Linear):
-                    nn.init.normal_(module.weight)
+                    nn.init.normal_(module.weight, mean=0, std=0.1)
                     nn.init.constant_(module.bias, 0)
 
     def fit_kmeans(self, train_loader):
@@ -863,7 +891,7 @@ class K_Means_NN(nn.Module):
     
         return cluster_dataloaders
 
-    def train_step(self, train_loader, target=3, criterion=None):
+    def train_step(self, train_loader, criterion=None):
         """训练步骤 - 使用固定batch size的聚类数据"""
         if not self.is_fitted:
             self.fit_kmeans(train_loader)
@@ -872,6 +900,10 @@ class K_Means_NN(nn.Module):
             criterion = self.loss_fn
         elif criterion == 'elastic_net':
             criterion = self.elastic_net_loss
+        elif criterion == 'mse_rs':
+            criterion = self.MSE_RS_loss
+        else:
+            raise ValueError("Unsupported criterion. Supported values are 'elastic_net', 'mse_rs', or None (default MSE).")
         
         self.train()
         total_loss = 0.0
@@ -894,7 +926,7 @@ class K_Means_NN(nn.Module):
             
             for batch in cluster_dataloader:
                 inputs = batch[0].to(self.device)
-                targets = batch[target].to(self.device)
+                targets = batch[self.target].to(self.device)
                 
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
@@ -990,7 +1022,7 @@ class K_Means_NN(nn.Module):
         # print(f"Training {self.model_name} with {self.n_clusters} clusters...")
         
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
-            train_loss = self.train_step(train_loader, target=3, criterion=criterion)
+            train_loss = self.train_step(train_loader, criterion=criterion)
             
             # 每10个epoch保存checkpoint和打印信息
             if (epoch + 1) % 10 == 0:
@@ -1001,14 +1033,14 @@ class K_Means_NN(nn.Module):
             if round(train_loss, 4) < round(prev_loss, 4):
                 prev_loss = train_loss
                 no_improvement_count = 0
+                # 保存最佳模型
+                self.save_model()
             else:
                 no_improvement_count += 1
                 if no_improvement_count >= patience:
                     print(f"Early stopping at epoch {epoch + 1}")
                     break
-        
-        # 训练完成后保存最终模型
-        self.save_model()
+
         print(f"Training completed for {self.model_name}")
         self.is_fitted = False
 
@@ -1029,7 +1061,7 @@ class K_Means_NN(nn.Module):
         
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(save_dict, path)
-        print(f"Model successfully saved to {path}")
+        # print(f"Model successfully saved to {path}")
 
     def load_model(self, path=None):
         """加载最终模型"""
@@ -1045,7 +1077,7 @@ class K_Means_NN(nn.Module):
                 self.cluster_labels = save_dict['cluster_labels']
                 self.is_fitted = save_dict['is_fitted']
                 
-                print(f"Model successfully loaded from {path}")
+                # print(f"Model successfully loaded from {path}")
                 return True
             except Exception as e:
                 print(f"Error loading model from {path}: {e}")
@@ -1158,3 +1190,18 @@ class K_Means_NN(nn.Module):
         
         elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
         return mse_loss + elastic_reg
+
+    def MSE_RS_loss(self, outputs, targets, epsilon=1e-8):
+        """
+        混合损失：结合MSE和R²
+        """
+        # MSE损失
+        mse_loss = torch.mean((targets - outputs) ** 2)
+        
+        # R²损失
+        sse = torch.sum((targets - outputs) ** 2)
+        ss = torch.sum(targets ** 2) + epsilon
+        r2_loss = sse / ss
+        
+        # 加权组合
+        return self.alpha * (self.l1_ratio* r2_loss + (1 - self.l1_ratio) * mse_loss)

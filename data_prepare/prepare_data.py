@@ -191,8 +191,8 @@ class data_engineering:
             # 保存处理后的数据
             self.factor.to_csv(f'../CSV/factor_ma{window}_add.csv', index=False)
 
-
-
+        # print len of factor
+        print(f"Number of factors after moving average: {len(self.factor)-2}")
         print(f"Moving average with window {window} saved to CSV file.")
         
         return
