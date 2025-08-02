@@ -28,6 +28,7 @@ class LoadData():
         return self.dataloader.get_test_loader(test_size=self.dataloader.test_size)
 
 
+
 class RiskMetrics:
     def __init__(self, risk_free_rate=0.01, data_frequency='monthly'):
         self.risk_free_rate = risk_free_rate
@@ -81,3 +82,26 @@ class RiskMetrics:
             'win_rate': win_rate,
             'data_frequency': f'{self.periods_per_year} periods/year'
         }
+
+
+class ClippedLeakyReLU(nn.Module):
+    def __init__(self, min_val=-0.2, max_val=0.2, negative_slope=0.3):
+        super().__init__()
+        self.min_val = min_val
+        self.max_val = max_val
+        self.negative_slope = negative_slope
+        
+    def forward(self, x):
+        x = torch.where(x >= 0, x, self.negative_slope * x)
+        x = torch.clamp(x, self.min_val, self.max_val)
+        return x
+
+class ScaledTanh(nn.Module):
+    def __init__(self, scale=0.2):
+        super().__init__()
+        self.scale = scale
+    
+    def forward(self, x):
+        return torch.tanh(x) * self.scale
+
+

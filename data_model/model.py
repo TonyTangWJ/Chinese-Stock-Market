@@ -4,14 +4,15 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm.auto import tqdm
 import numpy as np
+from utils import ClippedLeakyReLU, ScaledTanh
 
 class LinearRegression(nn.Module):
     def __init__(self, input_dim, output_dim=1, target =3, model_name = "linear_regression"):
         super(LinearRegression, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
-        nn.init.normal_(self.linear.weight, mean=0, std=0.1)
+        nn.init.normal_(self.linear.weight, mean=0, std=1)
         nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
         self.target = target
         self.model_name = model_name
@@ -32,9 +33,9 @@ class LinearRegression(nn.Module):
     
     def reset_model(self):
         self.linear.reset_parameters()
-        nn.init.normal_(self.linear.weight, mean=0, std=0.1)
+        nn.init.normal_(self.linear.weight, mean=0, std=1)
         nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         return
 
     
@@ -126,6 +127,9 @@ class LinearRegression(nn.Module):
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
                 outputs = self(inputs)
+                # targets >=0
+                targets = torch.clamp(targets, min=0)
+                outputs = torch.clamp(outputs, min=0)
                 # Calculate sum of squared errors and total sum of squares
                 sse = torch.sum((targets - outputs) ** 2)
                 ss = torch.sum(targets ** 2)
@@ -176,9 +180,9 @@ class ElasticNet(nn.Module):
     def __init__(self, input_dim, output_dim=1, target=3, alpha=1.0, l1_ratio=0.5, model_name = "ElasticNet"):
         super(ElasticNet, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
-        nn.init.normal_(self.linear.weight, mean=0, std=0.1)
+        nn.init.normal_(self.linear.weight, mean=0, std=1)
         nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
         self.model_name = model_name
         self.alpha = alpha
@@ -208,9 +212,9 @@ class ElasticNet(nn.Module):
 
     def reset_model(self):
         self.linear.reset_parameters()
-        nn.init.normal_(self.linear.weight, mean=0, std=0.1)
+        nn.init.normal_(self.linear.weight, mean=0, std=1)
         nn.init.constant_(self.linear.bias, 0)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         return
 
     def train_step(self, train_loader,criterion=None):
@@ -301,6 +305,9 @@ class ElasticNet(nn.Module):
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
                 outputs = self(inputs)
+                # targets >=0
+                targets = torch.clamp(targets, min=0)
+                outputs = torch.clamp(outputs, min=0)
                 # Calculate sum of squared errors and total sum of squares
                 sse = torch.sum((targets - outputs) ** 2)
                 ss = torch.sum(targets ** 2)
@@ -351,53 +358,64 @@ class NN(nn.Module):
         
         if layer == 1:
             self.layers = nn.Sequential(
-                nn.Linear(input_dim, output_dim),
-                nn.LeakyReLU(0.1)
+                nn.BatchNorm1d(input_dim),
+                nn.Linear(input_dim, output_dim)
             )
         elif layer == 2:
             self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.1),
-                nn.Linear(32, output_dim),
-                nn.Tanh()
+                nn.Linear(32, output_dim)
             )
         elif layer == 3:
             self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.1),
-                nn.Linear(16, output_dim),
-                nn.LeakyReLU(0.3)
+                nn.Linear(16, output_dim)
             )
         elif layer == 4:
             self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.1),
                 nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
                 nn.LeakyReLU(0.1),
-                nn.Linear(8, output_dim),
-                nn.Tanh()
+                nn.Linear(8, output_dim)
             )
         elif layer == 5:
             self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.1),
                 nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
                 nn.LeakyReLU(0.1),
                 nn.Linear(8, 4),
+                nn.BatchNorm1d(4),
                 nn.LeakyReLU(0.1),
-                nn.Linear(4, output_dim),
-                nn.LeakyReLU(0.5)
+                nn.Linear(4, output_dim)
             )
         else:
             raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
+        
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
         self.model_name = model_name + f"_{layer}Layers"
         self.alpha = alpha
@@ -419,7 +437,10 @@ class NN(nn.Module):
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=0.1)
+                nn.init.normal_(module.weight, mean=0, std=1)
+                nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.BatchNorm1d):
+                nn.init.constant_(module.weight, 1)
                 nn.init.constant_(module.bias, 0)
 
     def forward(self, x):
@@ -437,17 +458,6 @@ class NN(nn.Module):
         elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
         return mse_loss + elastic_reg
 
-    def MSE_RS_loss(self, outputs, targets, epsilon=1e-8):
-        """
-        混合损失：结合MSE和R²
-        """
-        mse_loss = self.loss_fn(outputs, targets)
-        sse = torch.sum((targets - outputs) ** 2)
-        ss = torch.sum(targets ** 2) + epsilon
-        r2_loss = sse / ss
-        # 加权组合
-        return self.alpha * r2_loss + (1 - self.alpha) * mse_loss
-
 
     def reset_model(self):
         self._initialize_weights()
@@ -459,16 +469,19 @@ class NN(nn.Module):
             criterion = self.loss_fn
         elif criterion == "elastic_net":
             criterion = self.elastic_net_loss
-        elif criterion == "mse_rs":
-            criterion = self.MSE_RS_loss
         else:
             raise ValueError("Unsupported criterion. Supported values are 'elastic_net', 'mse_rs', or None (default MSE).")
 
         self.train()
         total_loss = 0.0
+
         for train_data in train_loader:
             inputs = train_data[0].to(self.device)
             targets = train_data[self.target].to(self.device)
+            
+            if inputs.size(0) <= 1:
+                continue  
+            
             if targets.dim() == 1:
                 targets = targets.unsqueeze(1)
             self.optimizer.zero_grad()
@@ -489,11 +502,11 @@ class NN(nn.Module):
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader, criterion)
-            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+            # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
-                # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4):
@@ -507,7 +520,6 @@ class NN(nn.Module):
                     # print("Early stopping triggered due to no improvement in loss.")
                     break
         
-
     # Predict method & reverse normalization
     def predict(self, test_loader, label_mean, label_std):
         self.eval()
@@ -550,6 +562,9 @@ class NN(nn.Module):
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
                 outputs = self(inputs)
+                # targets >=0
+                targets = torch.clamp(targets, min=0)
+                outputs = torch.clamp(outputs, min=0)
                 # Calculate sum of squared errors and total sum of squares
                 sse = torch.sum((targets - outputs) ** 2)
                 ss = torch.sum(targets ** 2)
@@ -559,6 +574,7 @@ class NN(nn.Module):
             return 0
         else:
             return 1 - total_sse / total_ss
+
 
     def _save_checkpoint(self, epoch):
         checkpoint = {
@@ -745,7 +761,7 @@ class K_Means_NN(nn.Module):
             self.cluster_models[f'cluster_{i}'] = self._create_network(input_dim, output_dim, layer)
         
         # 优化器和损失函数
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.loss_fn = nn.MSELoss()
         
         # 设备设置
@@ -766,60 +782,74 @@ class K_Means_NN(nn.Module):
     def _create_network(self, input_dim, output_dim, layer):
         """为每个聚类创建独立的神经网络"""
         if layer == 1:
-            return nn.Sequential(
-                nn.Linear(input_dim, output_dim),
-                nn.Tanh()
+            self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
+                nn.Linear(input_dim, output_dim)
             )
         elif layer == 2:
-            return nn.Sequential(
+            self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.1),
-                nn.Linear(32, output_dim),
-                nn.Tanh()
+                nn.Linear(32, output_dim)
             )
         elif layer == 3:
-            return nn.Sequential(
+            self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.1),
-                nn.Linear(16, output_dim),
-                nn.Tanh()
+                nn.Linear(16, output_dim)
             )
         elif layer == 4:
-            return nn.Sequential(
+            self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.1),
                 nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
                 nn.LeakyReLU(0.1),
-                nn.Linear(8, output_dim),
-                nn.Tanh()
+                nn.Linear(8, output_dim)
             )
         elif layer == 5:
-            return nn.Sequential(
+            self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.1),
                 nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.1),
                 nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
                 nn.LeakyReLU(0.1),
                 nn.Linear(8, 4),
+                nn.BatchNorm1d(4),
                 nn.LeakyReLU(0.1),
-                nn.Linear(4, output_dim),
-                nn.Tanh()
+                nn.Linear(4, output_dim)
             )
         else:
             raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
-
+        
+        self._initialize_weights()
+    
+    
     def _initialize_weights(self):
-        """初始化所有聚类模型的权重"""
-        for cluster_model in self.cluster_models.values():
-            for module in cluster_model.modules():
-                if isinstance(module, nn.Linear):
-                    nn.init.normal_(module.weight, mean=0, std=0.1)
-                    nn.init.constant_(module.bias, 0)
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0, std=1)
+                nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.BatchNorm1d):
+                nn.init.constant_(module.weight, 1)
+                nn.init.constant_(module.bias, 0)
 
     def fit_kmeans(self, train_loader):
         """训练K-means聚类器"""
@@ -900,8 +930,6 @@ class K_Means_NN(nn.Module):
             criterion = self.loss_fn
         elif criterion == 'elastic_net':
             criterion = self.elastic_net_loss
-        elif criterion == 'mse_rs':
-            criterion = self.MSE_RS_loss
         else:
             raise ValueError("Unsupported criterion. Supported values are 'elastic_net', 'mse_rs', or None (default MSE).")
         
@@ -1014,7 +1042,7 @@ class K_Means_NN(nn.Module):
             # 首先训练K-means（只在新训练时）
             if not self.is_fitted:
                 self.fit_kmeans(train_loader)
-            self._initialize_weights()
+            # self._initialize_weights()
         
         no_improvement_count = 0
         prev_loss = float('inf')
@@ -1023,11 +1051,11 @@ class K_Means_NN(nn.Module):
         
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader, criterion=criterion)
-            
+            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             # 每10个epoch保存checkpoint和打印信息
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
-                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+                # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             
             # 早停机制
             if round(train_loss, 4) < round(prev_loss, 4):
@@ -1038,7 +1066,7 @@ class K_Means_NN(nn.Module):
             else:
                 no_improvement_count += 1
                 if no_improvement_count >= patience:
-                    print(f"Early stopping at epoch {epoch + 1}")
+                    # print(f"Early stopping at epoch {epoch + 1}")
                     break
 
         print(f"Training completed for {self.model_name}")
@@ -1089,7 +1117,7 @@ class K_Means_NN(nn.Module):
     def reset_model(self):
         """重置模型"""
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.is_fitted = False
         self.cluster_labels = None
         # 清除缓存的cluster dataloaders
@@ -1152,28 +1180,26 @@ class K_Means_NN(nn.Module):
             print("No checkpoint found. Starting from scratch.")
             return 0
     
-    def evaluate(self, test_loader, target=3):
-        """评估模型性能"""
+    # nondemeaned R^2 evaluation
+    def evaluate(self, test_loader):
         self.eval()
         total_sse = 0.0
         total_ss = 0.0
-        
         with torch.no_grad():
             for test_data in test_loader:
                 inputs = test_data[0].to(self.device)
-                targets = test_data[target].to(self.device)
-                
+                targets = test_data[self.target].to(self.device)
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
-                
-                outputs = self.forward(inputs)
-                
-                # 计算平方误差和总平方和
+                outputs = self(inputs)
+                # targets >=0
+                targets = torch.clamp(targets, min=0)
+                outputs = torch.clamp(outputs, min=0)
+                # Calculate sum of squared errors and total sum of squares
                 sse = torch.sum((targets - outputs) ** 2)
                 ss = torch.sum(targets ** 2)
                 total_sse += sse.item()
                 total_ss += ss.item()
-        
         if total_ss < 1e-8:
             return 0
         else:
@@ -1190,18 +1216,3 @@ class K_Means_NN(nn.Module):
         
         elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
         return mse_loss + elastic_reg
-
-    def MSE_RS_loss(self, outputs, targets, epsilon=1e-8):
-        """
-        混合损失：结合MSE和R²
-        """
-        # MSE损失
-        mse_loss = torch.mean((targets - outputs) ** 2)
-        
-        # R²损失
-        sse = torch.sum((targets - outputs) ** 2)
-        ss = torch.sum(targets ** 2) + epsilon
-        r2_loss = sse / ss
-        
-        # 加权组合
-        return self.alpha * (self.l1_ratio* r2_loss + (1 - self.l1_ratio) * mse_loss)

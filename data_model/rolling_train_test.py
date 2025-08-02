@@ -63,7 +63,7 @@ class RollingTrainTest:
         if trade_mode == 1:
             pred = self.pred[:,-1]
             act = self.act[:,-1]
-            pred = np.where(pred > 0, 1, -1)
+            pred = np.where(pred > 0, 1, 0)
             
             period_returns = pred * act
             
@@ -93,7 +93,7 @@ class RollingTrainTest:
         if trade_mode == 1:
             pred = self.pred_top10[:,-1]
             act = self.act[:,-1]
-            pred = np.where(pred > 0, 1, -1)
+            pred = np.where(pred > 0, 1, 0)
             
             period_returns = pred * act
             

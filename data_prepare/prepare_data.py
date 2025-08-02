@@ -141,16 +141,16 @@ class data_engineering:
         清理标签数据中的异常值
         """
         # 将数值除以100,去掉百分号
-        self.label['highest_return'] = self.label['highest_return'] / 100
-        self.label['lowest_return'] = self.label['lowest_return'] / 100
-        self.label['close_return'] = self.label['close_return'] / 100
+        self.label['highest_return'] = self.label['highest_return']
+        self.label['lowest_return'] = self.label['lowest_return']
+        self.label['close_return'] = self.label['close_return']
         
         # 处理收益率异常值（超出合理范围的收益率）
         if 'close_return' in self.label.columns:
             # 限制收益率在-20%到20%之间, 限制最高收益率在0%到30%之间, 限制最低收益率在-30%到0%之间
-            self.label['close_return'] = self.label['close_return'].clip(lower=-0.2, upper=0.2)
-            self.label['highest_return'] = self.label['highest_return'].clip(lower=0, upper=0.3)
-            self.label['lowest_return'] = self.label['lowest_return'].clip(lower=-0.3, upper=0)
+            self.label['close_return'] = self.label['close_return'].clip(lower=-20, upper=20)
+            self.label['highest_return'] = self.label['highest_return'].clip(lower=0, upper=30)
+            self.label['lowest_return'] = self.label['lowest_return'].clip(lower=-30, upper=0)
         
         # 收益率数据保留4位小数
         self.label['close_return'] = self.label['close_return'].round(4)
