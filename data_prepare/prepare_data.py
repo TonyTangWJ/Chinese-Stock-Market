@@ -158,7 +158,7 @@ class data_engineering:
         self.label['lowest_return'] = self.label['lowest_return'].round(4)
         return
 
-    def moving_average(self, window=6):
+    def moving_average(self, window=6, cover_data=True):
         """
         Calculate the moving average of the factors groupby tscode.
         """
@@ -170,16 +170,29 @@ class data_engineering:
         if 'trade_date' in numeric_columns:
             numeric_columns.remove('trade_date')
         
-        # 按股票代码分组计算移动平均
-        for col in numeric_columns:
-            self.factor[col] = self.factor.groupby('ts_code')[col].transform(
-                lambda x: x.rolling(window=window, min_periods=1).mean()
-            )
-        
-        # 保留4位小数
-        self.factor[numeric_columns] = self.factor[numeric_columns].round(4)
+        if cover_data:
+            # 如果True,则将计算后的移动平均覆盖原数据
+            for col in numeric_columns:
+                self.factor[col] = self.factor.groupby('ts_code')[col].transform(
+                    lambda x: x.rolling(window=window, min_periods=1).mean()
+                )
+            # 保留4位小数
+            self.factor[numeric_columns] = self.factor[numeric_columns].round(4)
+            # 保存处理后的数据
+            self.factor.to_csv(f'../CSV/factor_ma{window}.csv', index=False)
+        else:
+            # 如果False,则将计算后的移动平均保存到新的列
+            for col in numeric_columns:
+                self.factor[f'{col}_ma{window}'] = self.factor.groupby('ts_code')[col].transform(
+                    lambda x: x.rolling(window=window, min_periods=1).mean()
+                )
+            # 保留4位小数
+            self.factor[[f'{col}_ma{window}' for col in numeric_columns]] = self.factor[[f'{col}_ma{window}' for col in numeric_columns]].round(4)
+            # 保存处理后的数据
+            self.factor.to_csv(f'../CSV/factor_ma{window}_add.csv', index=False)
 
-        # 保存处理后的数据
-        self.factor.to_csv(f'../CSV/factor_ma{window}.csv', index=False)
+
+
+        print(f"Moving average with window {window} saved to CSV file.")
         
         return
