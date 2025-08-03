@@ -47,7 +47,15 @@ class RollingTrainTest:
             self.predictability.append(result)
             print (f'No.{_+1} Test Predictability: {result:.4f}')
             print (f'No.{_+1} Train Predictability: {result_train:.4f}')
+            # save test predictability and train predictability
+            file = f'../CSV/predictability_{self.model_name}.csv'
+            mode = 'a' if os.path.exists(file) else 'w'
+            with open(file, mode) as f:
+                if mode == 'w':
+                    f.write(f'model_name,No.,test_predictability,train_predictability\n')
+                f.write(f'{self.model_name},{_+1},{result:.4f},{result_train:.4f}\n')
             self.train_size += self.test_size
+            # self.model.reset_model()
         self.pred = np.concatenate(self.pred_list, axis=0)
         self.act = np.concatenate(self.act_list, axis=0)
         self.pred_top10 = np.concatenate(self.pred_list_top10, axis=0)
@@ -64,6 +72,13 @@ class RollingTrainTest:
         if trade_mode == 1:
             pred = self.pred[:,-1]
             act = self.act[:,-1]
+            # 保存预测结果和实际值
+            df = pd.DataFrame({
+                'pred': pred,
+                'act': act
+            })
+            df.to_csv(f'../CSV/predictions_{self.model_name}.csv', index=False)
+
             pred = np.where(pred > 0, 1, 0)
             
             period_returns = pred * act
@@ -86,7 +101,7 @@ class RollingTrainTest:
         else:
             pass
         return
-    
+    '''
     def backtest_top10(self, trade_mode = 1, data_frequency='monthly'):
         if trade_mode == 1:
             pred = self.pred_top10[:,-1]
@@ -114,4 +129,5 @@ class RollingTrainTest:
             pass
 
         return
+    '''
         

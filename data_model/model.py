@@ -19,6 +19,7 @@ class LinearRegression(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         self.target = target
         self.model_name = model_name
+        self.loss_fn = nn.MSELoss()
         if not os.path.exists("model/checkpoints"):
             os.makedirs("model/checkpoints")
         if not os.path.exists("model/final_models"):
@@ -34,22 +35,23 @@ class LinearRegression(nn.Module):
     def forward(self, x):
         return self.layers(x)
     
+    def reset_model(self):
+        self._initialize_weights()
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        return
 
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
                 nn.init.normal_(module.weight, mean=0, std=1)
                 nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.BatchNorm1d):
+                nn.init.constant_(module.weight, 1)
+                nn.init.constant_(module.bias, 0)
 
     
     def train_step(self, train_loader,criterion=None):
-        if criterion is None:
-            criterion = nn.MSELoss()
-        elif criterion == "elastic_net":
-            criterion = self.elastic_net_loss
-        else:
-            raise ValueError("Unsupported criterion. Supported values are 'elastic_net', 'mse_rs', or None (default MSE).")
-
+        criterion = self.loss_fn
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
@@ -76,14 +78,15 @@ class LinearRegression(nn.Module):
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader)
+            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
-                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+                # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
-            if round(train_loss,4) < round(prev_loss,4):
+            if round(train_loss,4) < round(prev_loss,4) - 0.001:
                 prev_loss = train_loss
                 no_improvement_count = 0  
                 self.save_model()  
@@ -150,19 +153,6 @@ class LinearRegression(nn.Module):
         else:
             return 1 - total_sse / total_ss
 
-  
-    def elastic_net_loss(self, outputs, targets):
-        mse_loss = self.loss_fn(outputs, targets)
-        l1_reg = 0
-        l2_reg = 0
-        for module in self.modules():
-            if isinstance(module, nn.Linear):
-                l1_reg += torch.sum(torch.abs(module.weight))
-                l2_reg += torch.sum(module.weight ** 2)
-        
-        elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
-        return mse_loss + elastic_reg
-
 
     def _save_checkpoint(self, epoch):
         checkpoint = {
@@ -189,29 +179,28 @@ class LinearRegression(nn.Module):
             path = self.model_path
         os.makedirs(os.path.dirname(path), exist_ok=True) 
         torch.save(self.state_dict(), path)
-        # print (f"Model successfully saved to {path}")
 
     def load_model(self, path=None):
         if path is None:
             path = self.model_path
         self.load_state_dict(torch.load(path, map_location=self.device))
-        # print (f"Model successfully loaded from {path}")
-
-
 
 
 class ElasticNet(nn.Module):
     def __init__(self, input_dim, output_dim=1, target=3, alpha=1.0, l1_ratio=0.5, model_name = "ElasticNet"):
         super(ElasticNet, self).__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
-        nn.init.normal_(self.linear.weight, mean=0, std=1)
-        nn.init.constant_(self.linear.bias, 0)
+        self.layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
+                nn.Linear(input_dim, output_dim)
+            )
+        
+        self._initialize_weights()
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
-        self.loss_fn = nn.MSELoss()
         self.model_name = model_name
         self.alpha = alpha
         self.l1_ratio = l1_ratio
         self.target = target
+        self.loss_fn = self.elastic_net_loss
         if not os.path.exists("model/checkpoints"):
             os.makedirs("model/checkpoints")
         if not os.path.exists("model/final_models"):
@@ -225,25 +214,41 @@ class ElasticNet(nn.Module):
         self.to(self.device)
 
     def forward(self, x):
-        return self.linear(x)
+        return self.layers(x)
 
     def elastic_net_loss(self, outputs, targets):
         mse_loss = self.loss_fn(outputs, targets)
-        l1_reg = torch.sum(torch.abs(self.linear.weight))
-        l2_reg = torch.sum(self.linear.weight ** 2)
+        l1_reg = 0
+        l2_reg = 0
+        
+        # 修复：遍历所有模块而不是引用不存在的 self.linear
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                l1_reg += torch.sum(torch.abs(module.weight))
+                l2_reg += torch.sum(module.weight ** 2)
+        
         elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
         return mse_loss + elastic_reg
+    
+
+    def _initialize_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0, std=1)
+                nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.BatchNorm1d):
+                nn.init.constant_(module.weight, 1)
+                nn.init.constant_(module.bias, 0)
 
     def reset_model(self):
-        self.linear.reset_parameters()
-        nn.init.normal_(self.linear.weight, mean=0, std=1)
-        nn.init.constant_(self.linear.bias, 0)
+        # 修复：重新初始化所有权重而不是引用不存在的 self.linear
+        self._initialize_weights()
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
         return
+    
 
     def train_step(self, train_loader,criterion=None):
-        if criterion is None:
-            criterion = self.elastic_net_loss
+        criterion = self.loss_fn
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
@@ -259,7 +264,7 @@ class ElasticNet(nn.Module):
             total_loss += loss.item()
         return total_loss / len(train_loader)
 
-    def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion=None):
+    def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion='elastic_net'):
         start_epoch = 0
         no_improvement_count = 0
         if resume_training:
@@ -268,7 +273,7 @@ class ElasticNet(nn.Module):
 
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
-            train_loss = self.train_step(train_loader)
+            train_loss = self.train_step(train_loader, criterion=criterion)
 
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
@@ -276,7 +281,7 @@ class ElasticNet(nn.Module):
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
-            if round(train_loss,4) < round(prev_loss,4):
+            if round(train_loss,4) < round(prev_loss,4) - 0.001:
                 prev_loss = train_loss
                 no_improvement_count = 0   
                 self.save_model() 
@@ -531,7 +536,7 @@ class NN(nn.Module):
                 # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
-            if round(train_loss,4) < round(prev_loss,4):
+            if round(train_loss,4) < round(prev_loss,4) - 0.001:
                 prev_loss = train_loss
                 no_improvement_count = 0  
                 # 保存最佳模型
@@ -584,9 +589,11 @@ class NN(nn.Module):
                 if targets.dim() == 1:
                     targets = targets.unsqueeze(1)
                 outputs = self(inputs)
+
                 # targets >=0
                 targets = torch.clamp(targets, min=0)
                 outputs = torch.clamp(outputs, min=0)
+                
                 # Calculate sum of squared errors and total sum of squares
                 sse = torch.sum((targets - outputs) ** 2)
                 ss = torch.sum(targets ** 2)
@@ -711,7 +718,6 @@ class RandomForest:
     def fit(self, train_loader, epochs=None, patience=None, criterion=None):
         """
         训练随机森林模型
-        注意：随机森林不需要epochs和patience参数
         """
         X_train, y_train = self._extract_data_from_loader(train_loader)
         self.model.fit(X_train, y_train)
@@ -778,7 +784,7 @@ class RandomForest:
         # 保存原始参数
         params = self.model.get_params()
         self.model = RandomForestRegressor(**params)
-        print("Random Forest model reset")
+
 
     def save_model(self, path=None):
         """保存模型"""
@@ -818,19 +824,21 @@ class K_Means_NN(nn.Module):
         from sklearn.cluster import KMeans
         
         self.input_dim = input_dim
+        self.output_dim = output_dim  # 添加这行
         self.n_clusters = n_clusters
+        self.layer = layer  # 添加这行
         self.model_name = model_name + f"_{layer}Layers_{n_clusters}Clusters"
         
         # K-means聚类器
         self.kmeans = KMeans(
-            n_clusters=self.n_clusters,      # 聚类数量
-            init='k-means++',           # 初始化方法（'k-means++', 'random'）
-            n_init='auto',                  # 不同初始化的运行次数
-            max_iter=300,               # 单次运行的最大迭代次数
-            tol=1e-4,                   # 收敛容忍度
-            random_state=42,            # 随机种子
-            algorithm='lloyd',          # 算法类型（'lloyd', 'elkan'）
-            copy_x=True                # 是否复制数据
+            n_clusters=self.n_clusters,
+            init='k-means++',
+            n_init='auto',
+            max_iter=300,
+            tol=1e-4,
+            random_state=42,
+            algorithm='lloyd',
+            copy_x=True
         )
         self.cluster_labels = None
         self.is_fitted = False
@@ -842,6 +850,9 @@ class K_Means_NN(nn.Module):
         self.cluster_models = nn.ModuleDict()
         for i in range(n_clusters):
             self.cluster_models[f'cluster_{i}'] = self._create_network(input_dim, output_dim, layer)
+        
+        # 初始化所有聚类模型的权重
+        self._initialize_weights()
         
         # 优化器和损失函数
         self.optimizer = optim.Adam(self.parameters(), lr=0.01)
@@ -863,14 +874,14 @@ class K_Means_NN(nn.Module):
         self.model_path = f"model/final_models/{self.model_name}.pth"
 
     def _create_network(self, input_dim, output_dim, layer):
-        """为每个聚类创建独立的神经网络"""
+        """为每个聚类创建独立的神经网络 - 修复：返回创建的网络"""
         if layer == 1:
-            self.layers = nn.Sequential(
+            network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, output_dim)
             )
         elif layer == 2:
-            self.layers = nn.Sequential(
+            network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
@@ -878,7 +889,7 @@ class K_Means_NN(nn.Module):
                 nn.Linear(32, output_dim)
             )
         elif layer == 3:
-            self.layers = nn.Sequential(
+            network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
@@ -889,7 +900,7 @@ class K_Means_NN(nn.Module):
                 nn.Linear(16, output_dim)
             )
         elif layer == 4:
-            self.layers = nn.Sequential(
+            network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
@@ -903,7 +914,7 @@ class K_Means_NN(nn.Module):
                 nn.Linear(8, output_dim)
             )
         elif layer == 5:
-            self.layers = nn.Sequential(
+            network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
@@ -922,17 +933,18 @@ class K_Means_NN(nn.Module):
         else:
             raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
         
-        self._initialize_weights()
-    
+        return network  # 修复：返回创建的网络
     
     def _initialize_weights(self):
-        for module in self.modules():
-            if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=1)
-                nn.init.constant_(module.bias, 0)
-            elif isinstance(module, nn.BatchNorm1d):
-                nn.init.constant_(module.weight, 1)
-                nn.init.constant_(module.bias, 0)
+        """初始化所有聚类模型的权重"""
+        for _, model in self.cluster_models.items():
+            for module in model.modules():
+                if isinstance(module, nn.Linear):
+                    nn.init.normal_(module.weight, mean=0, std=0.1)  # 减小初始化标准差
+                    nn.init.constant_(module.bias, 0)
+                elif isinstance(module, nn.BatchNorm1d):
+                    nn.init.constant_(module.weight, 1)
+                    nn.init.constant_(module.bias, 0)
 
     def fit_kmeans(self, train_loader):
         """训练K-means聚类器"""
@@ -952,13 +964,14 @@ class K_Means_NN(nn.Module):
         
         # 打印聚类信息
         unique, counts = np.unique(self.cluster_labels, return_counts=True)
+        print(f"K-means clustering completed:")
         for cluster_id, count in zip(unique, counts):
-            print(f"Cluster {cluster_id}: {count} samples ({count/len(X_all)*100:.1f}%)")
+            print(f"  Cluster {cluster_id}: {count} samples ({count/len(X_all)*100:.1f}%)")
         
         return self.cluster_labels
 
     def create_cluster_dataloaders(self, original_dataloader):
-        """为每个聚类创建独立的DataLoader，保持原始batch_size"""
+        """为每个聚类创建独立的DataLoader"""
         if not self.is_fitted:
             self.fit_kmeans(original_dataloader)
         
@@ -998,14 +1011,19 @@ class K_Means_NN(nn.Module):
                 cluster_dataset = TensorDataset(*cluster_tensors)
                 cluster_dataloader = DataLoader(
                     cluster_dataset, 
-                    batch_size=original_dataloader.batch_size
+                    batch_size=min(len(cluster_samples), original_dataloader.batch_size),
+                    shuffle=True
                 )
                 cluster_dataloaders[cluster_id] = cluster_dataloader
+                # print(f"Cluster {cluster_id}: Created dataloader with {len(cluster_samples)} samples")
+            else:
+                pass
+                # print(f"Cluster {cluster_id}: No samples found")
     
         return cluster_dataloaders
 
     def train_step(self, train_loader, criterion=None):
-        """训练步骤 - 使用固定batch size的聚类数据"""
+        """训练步骤"""
         if not self.is_fitted:
             self.fit_kmeans(train_loader)
         
@@ -1014,7 +1032,7 @@ class K_Means_NN(nn.Module):
         elif criterion == 'elastic_net':
             criterion = self.elastic_net_loss
         else:
-            raise ValueError("Unsupported criterion. Supported values are 'elastic_net', 'mse_rs', or None (default MSE).")
+            raise ValueError("Unsupported criterion. Supported values are 'elastic_net' or None (default MSE).")
         
         self.train()
         total_loss = 0.0
@@ -1022,16 +1040,22 @@ class K_Means_NN(nn.Module):
         
         # 创建每个聚类的DataLoader（只在第一次调用时创建）
         if not hasattr(self, 'cluster_dataloaders') or not self.cluster_dataloaders:
-            print("Creating cluster dataloaders with fixed batch size...")
+            print("Creating cluster dataloaders...")
             self.cluster_dataloaders = self.create_cluster_dataloaders(train_loader)
         
         # 为每个聚类分别训练
+        active_clusters = 0
         for cluster_id in range(self.n_clusters):
             if cluster_id not in self.cluster_dataloaders:
-                print(f"Cluster {cluster_id}: No data or insufficient samples")
                 continue
                 
             cluster_dataloader = self.cluster_dataloaders[cluster_id]
+            cluster_model = self.cluster_models[f'cluster_{cluster_id}']
+            
+            if cluster_model is None:
+                print(f"Warning: Model for cluster {cluster_id} is None")
+                continue
+                
             cluster_loss = 0.0
             cluster_samples = 0
             
@@ -1044,36 +1068,55 @@ class K_Means_NN(nn.Module):
                 
                 self.optimizer.zero_grad()
                 
-                # 使用对应聚类的模型
-                outputs = self.cluster_models[f'cluster_{cluster_id}'](inputs)
-                loss = criterion(outputs, targets)
-                
-                loss.backward()
-                self.optimizer.step()
-                
-                cluster_loss += loss.item()
-                cluster_samples += len(inputs)
+                try:
+                    # 使用对应聚类的模型
+                    outputs = cluster_model(inputs)
+                    loss = criterion(outputs, targets)
+                    
+                    loss.backward()
+                    self.optimizer.step()
+                    
+                    cluster_loss += loss.item()
+                    cluster_samples += len(inputs)
+                    
+                except Exception as e:
+                    print(f"Error training cluster {cluster_id}: {e}")
+                    continue
             
             if cluster_samples > 0:
                 total_loss += cluster_loss
                 total_samples += cluster_samples
-                # print(f"Cluster {cluster_id}: Loss = {cluster_loss/len(cluster_dataloader):.4f}, Samples = {cluster_samples}")
+                active_clusters += 1
         
+        if active_clusters == 0:
+            print("Warning: No active clusters found for training")
+            return 0.0
+            
         return total_loss / max(total_samples, 1)
 
     def forward(self, x, cluster_id=None):
         """前向传播"""
         if cluster_id is not None:
-            return self.cluster_models[f'cluster_{cluster_id}'](x)
+            # 指定聚类ID
+            cluster_model = self.cluster_models[f'cluster_{cluster_id}']
+            if cluster_model is None:
+                raise ValueError(f"Model for cluster {cluster_id} is None")
+            return cluster_model(x)
         else:
-            # 如果没有指定聚类，需要先预测聚类
+            # 自动预测聚类
+            if not self.is_fitted:
+                raise ValueError("K-means not fitted. Please call fit_kmeans first.")
+                
             x_np = x.cpu().numpy()
             predicted_clusters = self.kmeans.predict(x_np)
             
             outputs = []
             for i, cluster in enumerate(predicted_clusters):
                 sample_input = x[i:i+1]
-                output = self.cluster_models[f'cluster_{cluster}'](sample_input)
+                cluster_model = self.cluster_models[f'cluster_{cluster}']
+                if cluster_model is None:
+                    raise ValueError(f"Model for cluster {cluster} is None")
+                output = cluster_model(sample_input)
                 outputs.append(output)
             
             return torch.cat(outputs, dim=0)
@@ -1114,7 +1157,7 @@ class K_Means_NN(nn.Module):
         return pred, act
 
     def fit(self, train_loader, epochs=50, resume_training=False, patience=5, criterion=None):
-        """训练主函数 - 添加checkpoint支持"""
+        """训练主函数"""
         
         # 如果需要恢复训练，先加载checkpoint
         start_epoch = 0
@@ -1125,23 +1168,22 @@ class K_Means_NN(nn.Module):
             # 首先训练K-means（只在新训练时）
             if not self.is_fitted:
                 self.fit_kmeans(train_loader)
-            # self._initialize_weights()
         
         no_improvement_count = 0
         prev_loss = float('inf')
         
-        # print(f"Training {self.model_name} with {self.n_clusters} clusters...")
+        print(f"Training {self.model_name} with {self.n_clusters} clusters...")
         
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader, criterion=criterion)
-            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+            
             # 每10个epoch保存checkpoint和打印信息
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
-                # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             
             # 早停机制
-            if round(train_loss, 4) < round(prev_loss, 4):
+            if round(train_loss, 4) < round(prev_loss, 4) - 0.001:
                 prev_loss = train_loss
                 no_improvement_count = 0
                 # 保存最佳模型
@@ -1149,11 +1191,32 @@ class K_Means_NN(nn.Module):
             else:
                 no_improvement_count += 1
                 if no_improvement_count >= patience:
-                    # print(f"Early stopping at epoch {epoch + 1}")
                     break
 
         print(f"Training completed for {self.model_name}")
+        # 训练完成后清理状态
         self.is_fitted = False
+        if hasattr(self, 'cluster_dataloaders'):
+            delattr(self, 'cluster_dataloaders')
+
+    def reset_model(self):
+        """重置模型"""
+        # 重新创建聚类模型
+        self.cluster_models = nn.ModuleDict()
+        for i in range(self.n_clusters):
+            self.cluster_models[f'cluster_{i}'] = self._create_network(self.input_dim, self.output_dim, self.layer)
+        
+        self._initialize_weights()
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.is_fitted = False
+        self.cluster_labels = None
+        
+        # 清除缓存的cluster dataloaders
+        if hasattr(self, 'cluster_dataloaders'):
+            delattr(self, 'cluster_dataloaders')
+        
+        # 移动到设备
+        self.to(self.device)
 
     def save_model(self, path=None):
         """保存最终模型"""
@@ -1167,12 +1230,13 @@ class K_Means_NN(nn.Module):
             'is_fitted': self.is_fitted,
             'n_clusters': self.n_clusters,
             'model_name': self.model_name,
-            'input_dim': self.input_dim
+            'input_dim': self.input_dim,
+            'output_dim': self.output_dim,
+            'layer': self.layer
         }
         
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(save_dict, path)
-        # print(f"Model successfully saved to {path}")
 
     def load_model(self, path=None):
         """加载最终模型"""
@@ -1188,7 +1252,6 @@ class K_Means_NN(nn.Module):
                 self.cluster_labels = save_dict['cluster_labels']
                 self.is_fitted = save_dict['is_fitted']
                 
-                # print(f"Model successfully loaded from {path}")
                 return True
             except Exception as e:
                 print(f"Error loading model from {path}: {e}")
@@ -1196,16 +1259,6 @@ class K_Means_NN(nn.Module):
         else:
             print(f"Model file {path} not found")
             return False
-
-    def reset_model(self):
-        """重置模型"""
-        self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
-        self.is_fitted = False
-        self.cluster_labels = None
-        # 清除缓存的cluster dataloaders
-        if hasattr(self, 'cluster_dataloaders'):
-            delattr(self, 'cluster_dataloaders')
 
     def get_cluster_info(self):
         """获取聚类信息"""
@@ -1234,7 +1287,6 @@ class K_Means_NN(nn.Module):
         
         os.makedirs(os.path.dirname(self.checkpoint_path), exist_ok=True)
         torch.save(checkpoint, self.checkpoint_path)
-        print(f"Checkpoint saved at epoch {epoch + 1}")
 
     def _load_checkpoint(self):
         """加载训练检查点"""
@@ -1263,8 +1315,8 @@ class K_Means_NN(nn.Module):
             print("No checkpoint found. Starting from scratch.")
             return 0
     
-    # nondemeaned R^2 evaluation
     def evaluate(self, test_loader):
+        """nondemeaned R² evaluation"""
         self.eval()
         total_sse = 0.0
         total_ss = 0.0
@@ -1289,6 +1341,7 @@ class K_Means_NN(nn.Module):
             return 1 - total_sse / total_ss
         
     def elastic_net_loss(self, outputs, targets):
+        """Elastic net损失函数"""
         mse_loss = self.loss_fn(outputs, targets)
         l1_reg = 0
         l2_reg = 0

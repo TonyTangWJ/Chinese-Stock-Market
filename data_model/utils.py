@@ -47,8 +47,9 @@ class RiskMetrics:
     
     def calculate_metrics(self, returns):
         """计算年化风险指标"""
-        if len(returns) == 0:
-            return {}
+        # 剔除return为0的值
+        returns = np.array(returns)
+        returns = returns[returns != 0]
         
         # 基础统计
         mean_return = np.mean(returns)
