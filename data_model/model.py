@@ -78,12 +78,12 @@ class LinearRegression(nn.Module):
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader)
-            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+            # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
-                # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4) - 0.001:
@@ -162,7 +162,6 @@ class LinearRegression(nn.Module):
             'loss': self.loss_fn
         }
         torch.save(checkpoint, self.checkpoint_path)
-        print(f"Checkpoint saved at epoch {epoch + 1}")
 
     def _load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
@@ -355,7 +354,6 @@ class ElasticNet(nn.Module):
             'loss': self.loss_fn
         }
         torch.save(checkpoint, self.checkpoint_path)
-        print(f"Checkpoint saved at epoch {epoch + 1}")
 
     def _load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
@@ -529,11 +527,11 @@ class NN(nn.Module):
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader, criterion)
-            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+            # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
-                # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
             if round(train_loss,4) < round(prev_loss,4) - 0.001:
@@ -662,7 +660,7 @@ class NN(nn.Module):
             'loss': self.loss_fn
         }
         torch.save(checkpoint, self.checkpoint_path)
-        print(f"Checkpoint saved at epoch {epoch + 1}")
+        # print(f"Checkpoint saved at epoch {epoch + 1}")
 
     def _load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
@@ -722,7 +720,7 @@ class RandomForest:
         X_train, y_train = self._extract_data_from_loader(train_loader)
         self.model.fit(X_train, y_train)
         self.save_model()
-        print(f"Random Forest trained with {len(X_train)} samples")
+        # print(f"Random Forest trained with {len(X_train)} samples")
 
     def predict(self, test_loader, label_mean=None, label_std=None):
         """预测并返回与PyTorch模型相同的格式"""
@@ -794,7 +792,7 @@ class RandomForest:
         
         os.makedirs(os.path.dirname(path), exist_ok=True)
         joblib.dump(self.model, path)
-        print(f"Model successfully saved to {path}")
+        # print(f"Model successfully saved to {path}")
 
     def load_model(self, path=None):
         """加载模型"""
@@ -948,7 +946,6 @@ class K_Means_NN(nn.Module):
 
     def fit_kmeans(self, train_loader):
         """训练K-means聚类器"""
-        print("Fitting K-means clustering...")
         
         # 提取所有训练数据
         X_all = []
@@ -1040,7 +1037,6 @@ class K_Means_NN(nn.Module):
         
         # 创建每个聚类的DataLoader（只在第一次调用时创建）
         if not hasattr(self, 'cluster_dataloaders') or not self.cluster_dataloaders:
-            print("Creating cluster dataloaders...")
             self.cluster_dataloaders = self.create_cluster_dataloaders(train_loader)
         
         # 为每个聚类分别训练
@@ -1171,8 +1167,7 @@ class K_Means_NN(nn.Module):
         
         no_improvement_count = 0
         prev_loss = float('inf')
-        
-        print(f"Training {self.model_name} with {self.n_clusters} clusters...")
+
         
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader, criterion=criterion)
@@ -1193,7 +1188,6 @@ class K_Means_NN(nn.Module):
                 if no_improvement_count >= patience:
                     break
 
-        print(f"Training completed for {self.model_name}")
         # 训练完成后清理状态
         self.is_fitted = False
         if hasattr(self, 'cluster_dataloaders'):
@@ -1304,7 +1298,6 @@ class K_Means_NN(nn.Module):
                 self.is_fitted = checkpoint['is_fitted']
                 
                 epoch = checkpoint['epoch']
-                print(f"Checkpoint loaded successfully from epoch {epoch + 1}")
                 return epoch
                 
             except Exception as e:
