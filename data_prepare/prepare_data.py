@@ -196,3 +196,54 @@ class data_engineering:
         print(f"Moving average with window {window} saved to CSV file.")
         
         return
+    
+    # 创建交互项
+    def create_interaction_terms(self, max_interactions=None, correlation_threshold=0.5):
+        """
+        创建交互项特征
+        
+        参数:
+            max_interactions: 最大交互项数量
+            correlation_threshold: 相关性阈值，只为相关性超过阈值的特征创建交互项
+        """
+        factor = pd.read_csv('../CSV/factor_ma12.csv')
+        numeric_cols = factor.select_dtypes(include=[np.number]).columns.tolist()
+        exclude_cols = ['trade_date', 'ts_code']
+        interaction_cols = [col for col in numeric_cols if col not in exclude_cols]
+        
+        # 计算相关性矩阵来选择有意义的交互项
+        corr_matrix = factor[interaction_cols].corr().abs()
+        
+        interaction_data = {}
+        interaction_count = 0
+        
+        for i, col1 in enumerate(tqdm(interaction_cols)):
+            for j, col2 in enumerate(interaction_cols):
+                if i < j:  # 避免重复
+                    # 只为相关性超过阈值的特征对创建交互项
+                    if corr_matrix.loc[col1, col2] > correlation_threshold:
+                        interaction_name = f'{col1}_x_{col2}'
+                        interaction_data[interaction_name] = factor[col1] * factor[col2]
+                        interaction_count += 1
+                        
+                        # 限制交互项数量
+                        if max_interactions and interaction_count >= max_interactions:
+                            break
+            
+            if max_interactions and interaction_count >= max_interactions:
+                break
+        
+        # 一次性添加所有交互项
+        if interaction_data:
+            interaction_df = pd.DataFrame(interaction_data, index=factor.index)
+            factor = pd.concat([factor, interaction_df], axis=1)
+
+            # 保留4位小数,除了'ts_code'和'trade_date'
+            numeric_cols_for_rounding = factor.select_dtypes(include=[np.number]).columns.tolist()
+            exclude_cols = ['ts_code', 'trade_date']
+            cols_to_round = [col for col in numeric_cols_for_rounding if col not in exclude_cols]
+            factor[cols_to_round] = factor[cols_to_round].round(4)
+            # 保存处理后的数据
+            factor.to_csv('../CSV/factor_interaction.csv', index=False)
+            print(f"Created {len(interaction_data)} interaction terms, Total factors: {len(factor.columns)-2}")
+        return

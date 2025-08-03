@@ -3,10 +3,11 @@ import pandas as pd
 from tqdm.auto import tqdm
 import os
 from utils import RiskMetrics
+import math
 
 
 class RollingTrainTest:
-    def __init__(self, model, Data, train_size=0.5, test_size=0.1, epochs=50, patience=5, criterion=None):
+    def __init__(self, model, Data, train_size=0.5, test_size=0.1, epochs=50, patience=5, criterion=None, count = 0):
         self.model = model
         self.model_name = self.model.model_name
         self.Data = Data
@@ -16,9 +17,10 @@ class RollingTrainTest:
         self.epochs = epochs
         self.patience = patience
         self.criterion = criterion
+        self.count = count
 
-    def info(self, predictability):
-        self.predictability = predictability
+    def info(self, predictability_name):
+        self.predictability_name = predictability_name
 
         return
 
@@ -27,8 +29,9 @@ class RollingTrainTest:
         self.pred_list = []
         self.pred_list_top10 = []
         self.act_list = []
-        num_iterations = int((1 - self.train_size) / self.test_size)
-        for _ in range(num_iterations):
+        self.num_iterations = math.ceil((1 - self.train_size) / self.test_size)
+        print (f'{self.model_name} will run {self.num_iterations} iterations.')
+        for _ in range(self.num_iterations):
             self.train_loader = self.Data.get_train_loader(train_size=self.train_size)
             self.test_loader = self.Data.get_test_loader(test_size=self.test_size)
             self.model.fit(self.train_loader, epochs=self.epochs, patience=self.patience, criterion=self.criterion)
@@ -59,7 +62,7 @@ class RollingTrainTest:
                 if mode == 'w':
                     f.write(f'model_name,No.,test_predictability,train_predictability\n')
                 if _ == 0:
-                    f.write(f'{self.predictability}')
+                    f.write(f'{self.predictability_name}\n')
                 f.write(f'{self.model_name},{_+1},{result:.4f},{result_train:.4f}\n')
             self.train_size += self.test_size
             # self.model.reset_model()
@@ -72,6 +75,8 @@ class RollingTrainTest:
         with open(file, mode) as f:
             if mode == 'w':
                 f.write('model_name,predictability\n')
+            if self.count == 0:
+                f.write(f'{self.predictability_name}\n')
             f.write(f'{self.model_name},{sum(self.predictability) / len(self.predictability):.4f}\n')
 
 
@@ -79,32 +84,52 @@ class RollingTrainTest:
         if trade_mode == 1:
             pred = self.pred[:,-1]
             act = self.act[:,-1]
-            # 保存预测结果和实际值
-            df = pd.DataFrame({
-                'pred': pred,
-                'act': act
-            })
-            df.to_csv(f'../CSV/predictions_{self.model_name}.csv', index=False)
-
             pred = np.where(pred > 0, 1, 0)
             
-            period_returns = pred * act
+            all_returns = pred * act
+            num = math.ceil(len(all_returns) /12 /self.num_iterations)
+
+            # 按顺序提取num个return数据,作为一个月的收益率
+            # 取平均值时忽略0
+            period_returns = []
+            for i in range(0, len(all_returns), num):
+                period_data = all_returns[i:i+num]
+                non_zero_data = period_data[period_data != 0]
+                if len(non_zero_data) > 0:
+                    period_returns.append(np.mean(non_zero_data))
+                else:
+                    period_returns.append(0)
+            # 保留4位小数
+            period_returns = [round(x, 4) for x in period_returns]
+            period_returns = np.array(period_returns)
+            # 计算累计收益率
+            cum_returns = np.cumprod(1 + period_returns/100) - 1
+            cum_returns = [round(x*100, 4) for x in cum_returns]
+
+            # 根据period_returns的数量分配月份,最后一个月是2024年12月
+            months = pd.date_range(end='2024-12-31', periods=len(period_returns), freq='M')
+
+            # 保存预测结果和实际值
+            df = pd.DataFrame({
+                'month': months,
+                'monthly_return': period_returns,
+                'cum_return': cum_returns
+            })
+            df.to_csv(f'../CSV/predictions_{self.model_name}.csv', index=False)
             
             # 使用月度数据计算风险指标
-            risk_metrics = RiskMetrics(data_frequency=data_frequency)
+            risk_metrics = RiskMetrics(risk_free_rate=0.01, data_frequency=data_frequency)
             metrics = risk_metrics.calculate_metrics(period_returns)
-            
-            # 保存关键指标
-            self.profit_rate = metrics['mean_return']
-            self.sharpe_ratio = metrics['sharpe_ratio']
             
             # 保存到CSV
             file_path = '../CSV/profit_indicators.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,win_rate\n')
-                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
+                    f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,max_drawdown,win_rate\n')
+                if self.count == 0:
+                    f.write(f'{self.predictability_name}\n')
+                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics['max_drawdown']:.4f},{metrics["win_rate"]:.4f}\n')
         else:
             pass
         return

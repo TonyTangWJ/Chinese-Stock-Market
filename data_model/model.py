@@ -5,6 +5,8 @@ import torch.optim as optim
 from tqdm.auto import tqdm
 import numpy as np
 from utils import ClippedLeakyReLU, ScaledTanh
+from xgboost import XGBRegressor
+import joblib
 
 class LinearRegression(nn.Module):
     def __init__(self, input_dim, output_dim=1, target =3, model_name = "linear_regression"):
@@ -393,7 +395,7 @@ class NN(nn.Module):
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(32, output_dim)
             )
         elif layer == 3:
@@ -401,10 +403,10 @@ class NN(nn.Module):
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(32, 16),
                 nn.BatchNorm1d(16),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(16, output_dim)
             )
         elif layer == 4:
@@ -412,13 +414,13 @@ class NN(nn.Module):
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(32, 16),
                 nn.BatchNorm1d(16),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(16, 8),
                 nn.BatchNorm1d(8),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(8, output_dim)
             )
         elif layer == 5:
@@ -426,16 +428,16 @@ class NN(nn.Module):
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(32, 16),
                 nn.BatchNorm1d(16),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(16, 8),
                 nn.BatchNorm1d(8),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(8, 4),
                 nn.BatchNorm1d(4),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(4, output_dim)
             )
         else:
@@ -602,55 +604,6 @@ class NN(nn.Module):
         else:
             return 1 - total_sse / total_ss
 
-    # def evaluate(self, test_loader):
-    #     self.eval()
-    #     total_sse = 0.0
-    #     total_ss = 0.0
-    #     all_outputs = []
-    #     all_targets = []
-        
-    #     with torch.no_grad():
-    #         for data in test_loader:
-    #             inputs = data[0].to(self.device)
-    #             targets = data[self.target].to(self.device)
-                
-    #             if targets.dim() == 1:
-    #                 targets = targets.unsqueeze(1)
-    #             outputs = self(inputs)
-
-    #             targets = torch.clamp(targets, min=0)
-    #             outputs = torch.clamp(outputs, min=0)
-    #             # 计算指标
-    #             sse = torch.sum((targets - outputs) ** 2)
-    #             ss = torch.sum(targets ** 2)
-    #             total_sse += sse.item()
-    #             total_ss += ss.item()
-                
-    #             # 保存结果
-    #             all_outputs.append(outputs.cpu())
-    #             all_targets.append(targets.cpu())
-        
-    #     # 计算R²
-    #     r_squared = 0 if total_ss < 1e-8 else 1 - total_sse / total_ss
-        
-    #     # 保存预测结果
-    #     if all_outputs and all_targets:
-    #         self._save_predictions(all_outputs, all_targets)
-        
-    #     return r_squared
-    
-    # def _save_predictions(self, outputs, targets):
-    #     combined_outputs = torch.cat(outputs, dim=0).numpy().flatten()
-    #     combined_targets = torch.cat(targets, dim=0).numpy().flatten()
-        
-    #     os.makedirs('../CSV', exist_ok=True)
-    #     np.savetxt('../CSV/outputs_targets.csv', 
-    #               np.column_stack((combined_outputs, combined_targets)),
-    #               delimiter=',', 
-    #               header='outputs,targets', 
-    #               comments='',
-    #               fmt='%.4f')
-
 
     def _save_checkpoint(self, epoch):
         checkpoint = {
@@ -726,15 +679,27 @@ class RandomForest:
         """预测并返回与PyTorch模型相同的格式"""
         X_test, y_test = self._extract_data_from_loader(test_loader)
         pred = self.model.predict(X_test)
-        
+
         # 转换为与PyTorch模型相同的格式
         if pred.ndim == 1:
             pred = pred.reshape(-1, 1)
         if y_test.ndim == 1:
             y_test = y_test.reshape(-1, 1)
         
-        # label_mean和label_std用于反归一化
+        # 修复：将 label_mean 和 label_std 转换为 NumPy 数组
         if label_mean is not None and label_std is not None:
+            # 确保 label_mean 和 label_std 是 NumPy 数组
+            if hasattr(label_mean, 'cpu'):  # 如果是 PyTorch 张量
+                label_mean = label_mean.cpu().numpy()
+            if hasattr(label_std, 'cpu'):   # 如果是 PyTorch 张量
+                label_std = label_std.cpu().numpy()
+            
+            # 确保维度匹配
+            if label_mean.ndim == 0:
+                label_mean = label_mean.item()
+            if label_std.ndim == 0:
+                label_std = label_std.item()
+            
             pred = pred * label_std + label_mean
             y_test = y_test * label_std + label_mean
             
@@ -818,7 +783,189 @@ class RandomForest:
         else:
             print("Model not trained yet")
             return None
-    
+
+class XGBoost:
+    def __init__(self, target=3, n_estimators=100, max_depth=10, learning_rate=0.01, 
+                 subsample=0.8, colsample_bytree=0.8, random_state=42, 
+                 model_name="XGBoost"):
+        """
+        XGBoost回归模型
+        
+        参数:
+            target: 目标列索引 (默认3)
+            n_estimators: 树的数量 (默认100)
+            max_depth: 树的最大深度 (默认3)
+            learning_rate: 学习率 (默认0.1)
+            subsample: 样本采样比例 (默认0.8)
+            colsample_bytree: 特征采样比例 (默认0.8)
+            random_state: 随机种子 (默认42)
+            model_name: 模型名称 (默认"XGBoost")
+        """
+        self.model = XGBRegressor(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            learning_rate=learning_rate,
+            subsample=subsample,
+            colsample_bytree=colsample_bytree,
+            random_state=random_state,
+            n_jobs=-1  # 使用所有CPU核心
+        )
+        
+        self.model_name = model_name
+        self.feature_names = None
+        self.target = target
+        
+        # 创建模型保存目录
+        os.makedirs("model/checkpoints", exist_ok=True)
+        os.makedirs("model/final_models", exist_ok=True)
+            
+        self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pkl"
+        self.model_path = f"model/final_models/{self.model_name}.pkl"
+
+    def fit(self, train_loader, epochs=None, patience=None, criterion=None):
+        """
+        训练XGBoost模型
+        
+        参数:
+            train_loader: 数据加载器 (PyTorch DataLoader格式)
+            epochs: 为了接口兼容保留 (XGBoost不需要)
+            patience: 为了接口兼容保留
+            criterion: 为了接口兼容保留
+        """
+        X_train, y_train = self._extract_data_from_loader(train_loader)
+        self.model.fit(X_train, y_train)
+        self.save_model()
+
+    def predict(self, test_loader, label_mean=None, label_std=None):
+        """
+        预测并返回与PyTorch模型相同的格式
+        
+        参数:
+            test_loader: 测试数据加载器
+            label_mean: 标准化均值 (可选)
+            label_std: 标准化标准差 (可选)
+            
+        返回:
+            (pred, y_test) 元组，与PyTorch模型输出格式一致
+        """
+        X_test, y_test = self._extract_data_from_loader(test_loader)
+        pred = self.model.predict(X_test)
+
+        # 转换为与PyTorch模型相同的格式
+        if pred.ndim == 1:
+            pred = pred.reshape(-1, 1)
+        if y_test.ndim == 1:
+            y_test = y_test.reshape(-1, 1)
+        
+        # 反标准化处理
+        if label_mean is not None and label_std is not None:
+            if hasattr(label_mean, 'cpu'):  # 如果是PyTorch张量
+                label_mean = label_mean.cpu().numpy()
+            if hasattr(label_std, 'cpu'):
+                label_std = label_std.cpu().numpy()
+            
+            pred = pred * label_std + label_mean
+            y_test = y_test * label_std + label_mean
+            
+        return pred, y_test
+
+    def evaluate(self, test_loader):
+        """
+        计算nondemeaned R²分数
+        
+        参数:
+            test_loader: 测试数据加载器
+            
+        返回:
+            R²分数
+        """
+        X_test, y_test = self._extract_data_from_loader(test_loader)
+        pred = self.model.predict(X_test)
+        
+        # 确保非负
+        y_test = np.clip(y_test, a_min=0, a_max=None)
+        pred = np.clip(pred, a_min=0, a_max=None)
+        
+        # 计算nondemeaned R²
+        sse = np.sum((y_test - pred) ** 2)
+        ss = np.sum(y_test ** 2)
+        
+        return 0 if ss < 1e-8 else 1 - sse / ss
+
+    def _extract_data_from_loader(self, data_loader):
+        """
+        从PyTorch DataLoader中提取数据
+        
+        参数:
+            data_loader: PyTorch DataLoader
+            
+        返回:
+            (X, y) 元组
+        """
+        X_list, y_list = [], []
+        
+        for batch in data_loader:
+            X_list.append(batch[0].numpy())
+            y_list.append(batch[self.target].numpy())
+        
+        X = np.concatenate(X_list, axis=0)
+        y = np.concatenate(y_list, axis=0).ravel()  # XGBoost需要一维目标
+        
+        return X, y
+
+    def reset_model(self):
+        """重置模型（重新初始化）"""
+        params = self.model.get_params()
+        self.model = XGBRegressor(**params)
+
+    def save_model(self, path=None):
+        """
+        保存模型到文件
+        
+        参数:
+            path: 自定义保存路径 (可选)
+        """
+        path = path or self.model_path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        joblib.dump(self.model, path)
+
+    def load_model(self, path=None):
+        """
+        从文件加载模型
+        
+        参数:
+            path: 自定义加载路径 (可选)
+        """
+        path = path or self.model_path
+        if os.path.exists(path):
+            self.model = joblib.load(path)
+        else:
+            print(f"Model file {path} not found")
+
+    def get_feature_importance(self, importance_type='weight'):
+        """
+        获取特征重要性
+        
+        参数:
+            importance_type: 
+                'weight' - 被使用的次数
+                'gain' - 平均信息增益 (默认)
+                'cover' - 覆盖的样本数
+                
+        返回:
+            特征重要性数组
+        """
+        if hasattr(self.model, 'get_score'):
+            return self.model.get_booster().get_score(importance_type=importance_type)
+        else:
+            print("Model not trained yet")
+            return None
+
+    def set_params(self, **params):
+        """设置模型参数"""
+        self.model.set_params(**params)
+
+
 
 class K_Means_NN(nn.Module):
     def __init__(self, input_dim, output_dim=1, target=3, n_clusters=10, layer=2, alpha=1.0, l1_ratio=0.5, model_name="K_Means_NN"):
@@ -888,7 +1035,7 @@ class K_Means_NN(nn.Module):
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(32, output_dim)
             )
         elif layer == 3:
@@ -896,10 +1043,10 @@ class K_Means_NN(nn.Module):
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(32, 16),
                 nn.BatchNorm1d(16),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(16, output_dim)
             )
         elif layer == 4:
@@ -907,13 +1054,13 @@ class K_Means_NN(nn.Module):
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(32, 16),
                 nn.BatchNorm1d(16),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(16, 8),
                 nn.BatchNorm1d(8),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(8, output_dim)
             )
         elif layer == 5:
@@ -921,16 +1068,16 @@ class K_Means_NN(nn.Module):
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(32, 16),
                 nn.BatchNorm1d(16),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(16, 8),
                 nn.BatchNorm1d(8),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(8, 4),
                 nn.BatchNorm1d(4),
-                nn.LeakyReLU(0.1),
+                nn.LeakyReLU(0.3),
                 nn.Linear(4, output_dim)
             )
         else:
@@ -1014,7 +1161,8 @@ class K_Means_NN(nn.Module):
                 cluster_dataloader = DataLoader(
                     cluster_dataset, 
                     batch_size=min(len(cluster_samples), original_dataloader.batch_size),
-                    shuffle=True
+                    shuffle=True,
+                    drop_last=True
                 )
                 cluster_dataloaders[cluster_id] = cluster_dataloader
                 # print(f"Cluster {cluster_id}: Created dataloader with {len(cluster_samples)} samples")
@@ -1350,3 +1498,4 @@ class K_Means_NN(nn.Module):
         
         elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
         return mse_loss + elastic_reg
+

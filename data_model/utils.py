@@ -50,7 +50,7 @@ class RiskMetrics:
         # 剔除return为0的值
         returns = np.array(returns)
         returns = returns[returns != 0]
-        
+
         # 基础统计
         mean_return = np.mean(returns)
         std_return = np.std(returns)
@@ -66,10 +66,10 @@ class RiskMetrics:
             sharpe_ratio = 0
         
         # 最大回撤
-        cumulative_returns = np.cumsum(returns)
+        cumulative_returns = np.cumprod(1 + returns/100) - 1 
         peak = np.maximum.accumulate(cumulative_returns)
-        drawdown = peak - cumulative_returns
-        max_drawdown = np.max(drawdown)
+        drawdown = (peak - cumulative_returns) / (peak + 1e-8)
+        max_drawdown = -np.max(drawdown)
         
         # 其他指标
         win_rate = np.sum(returns > 0) / len(returns)
