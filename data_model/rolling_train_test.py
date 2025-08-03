@@ -17,6 +17,11 @@ class RollingTrainTest:
         self.patience = patience
         self.criterion = criterion
 
+    def info(self, predictability):
+        self.predictability = predictability
+
+        return
+
     def run(self):
         self.predictability = []
         self.pred_list = []
@@ -53,6 +58,8 @@ class RollingTrainTest:
             with open(file, mode) as f:
                 if mode == 'w':
                     f.write(f'model_name,No.,test_predictability,train_predictability\n')
+                if _ == 0:
+                    f.write(f'{self.predictability}')
                 f.write(f'{self.model_name},{_+1},{result:.4f},{result_train:.4f}\n')
             self.train_size += self.test_size
             # self.model.reset_model()
@@ -101,6 +108,7 @@ class RollingTrainTest:
         else:
             pass
         return
+    
     '''
     def backtest_top10(self, trade_mode = 1, data_frequency='monthly'):
         if trade_mode == 1:

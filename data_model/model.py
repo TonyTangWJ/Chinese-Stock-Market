@@ -199,7 +199,7 @@ class ElasticNet(nn.Module):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
         self.target = target
-        self.loss_fn = self.elastic_net_loss
+        self.loss_fn = nn.MSELoss()
         if not os.path.exists("model/checkpoints"):
             os.makedirs("model/checkpoints")
         if not os.path.exists("model/final_models"):
@@ -247,7 +247,7 @@ class ElasticNet(nn.Module):
     
 
     def train_step(self, train_loader,criterion=None):
-        criterion = self.loss_fn
+        criterion = self.elastic_net_loss
         self.train()
         total_loss = 0.0
         for train_data in train_loader:
@@ -351,7 +351,7 @@ class ElasticNet(nn.Module):
             'epoch': epoch,
             'model_state_dict': self.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'loss': self.loss_fn
+            'loss': self.elastic_net_loss()
         }
         torch.save(checkpoint, self.checkpoint_path)
 
@@ -732,6 +732,11 @@ class RandomForest:
             pred = pred.reshape(-1, 1)
         if y_test.ndim == 1:
             y_test = y_test.reshape(-1, 1)
+        
+        # label_mean和label_std用于反归一化
+        if label_mean is not None and label_std is not None:
+            pred = pred * label_std + label_mean
+            y_test = y_test * label_std + label_mean
             
         return pred, y_test
 
