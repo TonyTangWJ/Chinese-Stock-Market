@@ -22,7 +22,6 @@ class RollingTrainTest:
 
     def info(self, predictability_name):
         self.predictability_name = predictability_name
-
         return
 
     def run(self):
@@ -68,7 +67,7 @@ class RollingTrainTest:
                     f.write(f'model_name,No.,test_predictability,train_predictability,spent_time\n')
                 if _ == 0:
                     f.write(f'{self.predictability_name}\n')
-                f.write(f'{self.model_name},{_+1},{result:.4f},{result_train:.4f},{spent_time:.2f}\n')
+                f.write(f'{self.model_name},{_+1},{result:.4f},{result_train:.4f},{spent_time:.2f}s\n')
             self.train_size += self.test_size
             # self.model.reset_model()
         self.pred = np.concatenate(self.pred_list, axis=0)
@@ -83,7 +82,7 @@ class RollingTrainTest:
                 f.write('model_name,predictability,all_spent_time\n')
             if self.count == 0:
                 f.write(f'{self.predictability_name}\n')
-            f.write(f'{self.model_name},{sum(self.predictability) / len(self.predictability):.4f},{all_spent_time:.2f}\n')
+            f.write(f'{self.model_name},{sum(self.predictability) / len(self.predictability):.4f},{all_spent_time:.2f}s\n')
 
 
     def backtest(self, trade_mode=1, data_frequency='monthly'):
@@ -118,25 +117,27 @@ class RollingTrainTest:
             # save to dataframe
             df = pd.DataFrame(
                 {'Month': months,
-                 'returns': period_returns,
-                 'cum_returns': cum_returns}
+                'returns': period_returns,
+                'cum_returns': cum_returns}
             )
-            
+
             file = f'../CSV/predictions_{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
-            with open(file, mode, encoding='utf-8') as f:
+            with open(file, mode, encoding='utf-8', newline="") as f:
                 if mode == 'w':
                     # 如果是新文件，先写入描述信息
-                    f.write(f'{self.predictability_name}\n')
                     f.write('Month,returns,cum_returns\n')
-                    # 写入数据，不包含表头
-                    f.write(df.to_csv(index=False, header=False))
+                    f.write(f'{self.predictability_name}\n')
+                    # 写入数据，不包含表头，去掉最后的换行符
+                    csv_content = df.to_csv(index=False, header=False)
+                    f.write(csv_content)
                 else:
                     # 如果是追加模式
                     if self.count == 0:
                         f.write(f'{self.predictability_name}\n')
-                    # 直接写入数据，不包含表头
-                    f.write(df.to_csv(index=False, header=False))
+                    # 直接写入数据，不包含表头，去掉最后的换行符
+                    csv_content = df.to_csv(index=False, header=False)
+                    f.write(csv_content)
 
             # 使用月度数据计算风险指标
             risk_metrics = RiskMetrics(risk_free_rate=0.01, data_frequency=data_frequency)
