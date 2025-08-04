@@ -217,7 +217,7 @@ class data_engineering:
         interaction_data = {}
         interaction_count = 0
         
-        for i, col1 in enumerate(tqdm(interaction_cols)):
+        for i, col1 in enumerate(interaction_cols):
             for j, col2 in enumerate(interaction_cols):
                 if i < j:  # 避免重复
                     # 只为相关性超过阈值的特征对创建交互项
@@ -244,6 +244,6 @@ class data_engineering:
             cols_to_round = [col for col in numeric_cols_for_rounding if col not in exclude_cols]
             factor[cols_to_round] = factor[cols_to_round].round(4)
             # 保存处理后的数据
-            factor.to_csv('../CSV/factor_interaction.csv', index=False)
+            factor.to_csv(f'../CSV/factor_interaction_{correlation_threshold}.csv', index=False)
             print(f"Created {len(interaction_data)} interaction terms, Total factors: {len(factor.columns)-2}")
         return
