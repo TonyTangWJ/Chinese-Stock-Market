@@ -132,10 +132,7 @@ class RollingTrainTest:
                     csv_content = df.to_csv(index=False, header=False)
                     f.write(csv_content)
                 else:
-                    # 如果是追加模式
-                    if self.count == 0:
-                        f.write(f'{self.predictability_name}\n')
-                    # 直接写入数据，不包含表头，去掉最后的换行符
+                    f.write(f'{self.predictability_name}\n')
                     csv_content = df.to_csv(index=False, header=False)
                     f.write(csv_content)
 
@@ -156,33 +153,4 @@ class RollingTrainTest:
             pass
         return
     
-    '''
-    def backtest_top10(self, trade_mode = 1, data_frequency='monthly'):
-        if trade_mode == 1:
-            pred = self.pred_top10[:,-1]
-            act = self.act[:,-1]
-            pred = np.where(pred > 0, 1, 0)
-            
-            period_returns = pred * act
-            
-            # 使用月度数据计算风险指标
-            risk_metrics = RiskMetrics(data_frequency=data_frequency)
-            metrics = risk_metrics.calculate_metrics(period_returns)
-            
-            # 保存关键指标
-            self.profit_rate_top10 = metrics['mean_return']
-            self.sharpe_ratio_top10 = metrics['sharpe_ratio']
-            
-            # 保存到CSV
-            file_path = '../CSV/profit_indicators_top10.csv'
-            mode = 'a' if os.path.exists(file_path) else 'w'      
-            with open(file_path, mode) as f:
-                if mode == 'w':
-                    f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,win_rate\n')
-                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["win_rate"]:.4f}\n')
-        else:
-            pass
-
-        return
-    '''
         

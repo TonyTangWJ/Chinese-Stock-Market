@@ -353,7 +353,7 @@ class ElasticNet(nn.Module):
             'epoch': epoch,
             'model_state_dict': self.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'loss': self.elastic_net_loss()
+            'loss': self.elastic_net_loss
         }
         torch.save(checkpoint, self.checkpoint_path)
 
@@ -1192,6 +1192,7 @@ class K_Means_NN(nn.Module):
         if not hasattr(self, 'cluster_dataloaders') or not self.cluster_dataloaders:
             self.cluster_dataloaders = self.create_cluster_dataloaders(train_loader)
         
+
         # 为每个聚类分别训练
         active_clusters = 0
         for cluster_id in range(self.n_clusters):
@@ -1244,30 +1245,26 @@ class K_Means_NN(nn.Module):
         return total_loss / max(total_samples, 1)
 
     def forward(self, x, cluster_id=None):
-        """前向传播"""
+        """前向传播，聚类模型输出后再经过全连接层"""
         if cluster_id is not None:
-            # 指定聚类ID
             cluster_model = self.cluster_models[f'cluster_{cluster_id}']
             if cluster_model is None:
                 raise ValueError(f"Model for cluster {cluster_id} is None")
-            return cluster_model(x)
+            out = cluster_model(x)
+            return out
         else:
-            # 自动预测聚类
             if not self.is_fitted:
                 raise ValueError("K-means not fitted. Please call fit_kmeans first.")
-                
             x_np = x.cpu().numpy()
             predicted_clusters = self.kmeans.predict(x_np)
-            
             outputs = []
             for i, cluster in enumerate(predicted_clusters):
                 sample_input = x[i:i+1]
                 cluster_model = self.cluster_models[f'cluster_{cluster}']
                 if cluster_model is None:
                     raise ValueError(f"Model for cluster {cluster} is None")
-                output = cluster_model(sample_input)
-                outputs.append(output)
-            
+                out = cluster_model(sample_input)
+                outputs.append(out)
             return torch.cat(outputs, dim=0)
 
     def predict(self, test_loader, label_mean, label_std):
@@ -1498,4 +1495,260 @@ class K_Means_NN(nn.Module):
         
         elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
         return mse_loss + elastic_reg
+
+
+class CNN(nn.Module):
+    def __init__(self, input_dim, output_dim=1, target=3, model_name="CNN"):
+        super(CNN, self).__init__()
+        
+        import math
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.target = target
+        self.model_name = model_name
+        
+        # 计算最接近正方形的尺寸
+        self.height = int(math.sqrt(input_dim))
+        self.width = int(math.ceil(input_dim / self.height))
+        self.padded_size = self.height * self.width
+        
+        # 卷积层
+        self.conv_layers = nn.Sequential(
+            # 第一个卷积块
+            nn.Conv2d(1, 16, kernel_size=3, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            
+            # 第二个卷积块
+            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            
+            # 第三个卷积块
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((4, 4))  # 自适应池化到固定尺寸
+        )
+        
+        # 全连接层
+        self.fc_layers = nn.Sequential(
+            nn.Linear(64 * 4 * 4, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 32),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+
+            nn.Linear(32, output_dim)
+        )
+        
+        self._initialize_weights()
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.loss_fn = nn.MSELoss()
+        
+        # 设备设置
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
+        self.to(self.device)
+        
+        # 模型保存路径
+        if not os.path.exists("model/checkpoints"):
+            os.makedirs("model/checkpoints")
+        if not os.path.exists("model/final_models"):
+            os.makedirs("model/final_models")
+        self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
+        self.model_path = f"model/final_models/{self.model_name}.pth"
+
+    def _initialize_weights(self):
+        """初始化权重"""
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0, std=0.1)
+                nn.init.constant_(module.bias, 0)
+            elif isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d)):
+                nn.init.constant_(module.weight, 1)
+                nn.init.constant_(module.bias, 0)
+
+    def forward(self, x):
+        """前向传播"""
+        batch_size = x.size(0)
+        
+
+        if x.size(1) < self.padded_size:
+            padding = torch.zeros(batch_size, self.padded_size - x.size(1), device=x.device)
+            x = torch.cat([x, padding], dim=1)
+        elif x.size(1) > self.padded_size:
+            x = x[:, :self.padded_size]
+
+        x = x.view(batch_size, 1, self.height, self.width)
+        x = self.conv_layers(x)
+        x = x.view(batch_size, -1)
+        x = self.fc_layers(x)
+        
+        return x
+
+    def train_step(self, train_loader, criterion=None):
+        """训练步骤"""
+        if criterion is None:
+            criterion = self.loss_fn
+        
+        self.train()
+        total_loss = 0.0
+        
+        for train_data in train_loader:
+            inputs = train_data[0].to(self.device)
+            targets = train_data[self.target].to(self.device)
+            
+            if targets.dim() == 1:
+                targets = targets.unsqueeze(1)
+            
+            self.optimizer.zero_grad()
+            outputs = self.forward(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            self.optimizer.step()
+            total_loss += loss.item()
+        
+        return total_loss / len(train_loader)
+
+    def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion=None):
+        """训练主函数"""
+        start_epoch = 0
+        no_improvement_count = 0
+        
+        if resume_training:
+            start_epoch = self._load_checkpoint()
+            print(f"Resuming training from epoch {start_epoch + 1}")
+
+        prev_loss = float('inf')
+        for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
+            train_loss = self.train_step(train_loader, criterion)
+            
+            # 每10个epoch保存checkpoint
+            if (epoch + 1) % 10 == 0:
+                self._save_checkpoint(epoch)
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+
+            # 早停机制
+            if round(train_loss, 4) < round(prev_loss, 4) - 0.001:
+                prev_loss = train_loss
+                no_improvement_count = 0
+                self.save_model()
+            else:
+                no_improvement_count += 1
+                if no_improvement_count >= patience:
+                    break
+
+    def predict(self, test_loader, label_mean, label_std):
+        """预测方法"""
+        self.eval()
+        pred_list = []
+        act_list = []
+        
+        with torch.no_grad():
+            for test_data in test_loader:
+                data = test_data[0].to(self.device)
+                act_high = test_data[1].to(self.device)
+                act_low = test_data[2].to(self.device)
+                act_close = test_data[3].to(self.device)
+                
+                if act_high.dim() == 1:
+                    act_high = act_high.unsqueeze(1)
+                if act_low.dim() == 1:
+                    act_low = act_low.unsqueeze(1)
+                if act_close.dim() == 1:
+                    act_close = act_close.unsqueeze(1)
+                
+                act = torch.cat([act_high, act_low, act_close], dim=1)
+                act = act * label_std + label_mean
+                act_list.append(act.cpu().numpy())
+                
+                pred = self(data)
+                pred = pred * label_std + label_mean
+                pred_list.append(pred.cpu().numpy())
+        
+        pred = np.concatenate(pred_list, axis=0)
+        act = np.concatenate(act_list, axis=0)
+        return pred, act
+
+    def evaluate(self, test_loader):
+        """nondemeaned R² evaluation"""
+        self.eval()
+        total_sse = 0.0
+        total_ss = 0.0
+        
+        with torch.no_grad():
+            for test_data in test_loader:
+                inputs = test_data[0].to(self.device)
+                targets = test_data[self.target].to(self.device)
+                
+                if targets.dim() == 1:
+                    targets = targets.unsqueeze(1)
+                
+                outputs = self(inputs)
+                
+                # 确保非负
+                targets = torch.clamp(targets, min=0)
+                outputs = torch.clamp(outputs, min=0)
+                
+                # 计算误差
+                sse = torch.sum((targets - outputs) ** 2)
+                ss = torch.sum(targets ** 2)
+                total_sse += sse.item()
+                total_ss += ss.item()
+        
+        if total_ss < 1e-8:
+            return 0
+        else:
+            return 1 - total_sse / total_ss
+
+    def reset_model(self):
+        """重置模型"""
+        self._initialize_weights()
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+
+    def save_model(self, path=None):
+        """保存模型"""
+        if path is None:
+            path = self.model_path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(self.state_dict(), path)
+
+    def load_model(self, path=None):
+        """加载模型"""
+        if path is None:
+            path = self.model_path
+        self.load_state_dict(torch.load(path, map_location=self.device))
+
+    def _save_checkpoint(self, epoch):
+        """保存检查点"""
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'loss': self.loss_fn
+        }
+        torch.save(checkpoint, self.checkpoint_path)
+
+    def _load_checkpoint(self):
+        """加载检查点"""
+        if os.path.exists(self.checkpoint_path):
+            checkpoint = torch.load(self.checkpoint_path, weights_only=False, map_location=self.device)
+            self.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            return checkpoint['epoch']
+        else:
+            print("No checkpoint found. Starting from scratch.")
+            return 0
 

@@ -198,7 +198,7 @@ class data_engineering:
         return
     
     # 创建交互项
-    def create_interaction_terms(self, max_interactions=None, correlation_threshold=0.5):
+    def create_interaction_terms(self, max_interactions=None, correlation_threshold=0.5, Reverse=False):
         """
         创建交互项特征
         
@@ -221,7 +221,7 @@ class data_engineering:
             for j, col2 in enumerate(interaction_cols):
                 if i < j:  # 避免重复
                     # 只为相关性超过阈值的特征对创建交互项
-                    if corr_matrix.loc[col1, col2] > correlation_threshold:
+                    if corr_matrix.loc[col1, col2] > correlation_threshold and Reverse == False:
                         interaction_name = f'{col1}_x_{col2}'
                         interaction_data[interaction_name] = factor[col1] * factor[col2]
                         interaction_count += 1
@@ -229,6 +229,17 @@ class data_engineering:
                         # 限制交互项数量
                         if max_interactions and interaction_count >= max_interactions:
                             break
+                    # 只为相关性低于阈值的特征对创建交互项
+                    elif corr_matrix.loc[col1, col2] < correlation_threshold and Reverse == True:
+                        interaction_name = f'{col1}_x_{col2}'
+                        interaction_data[interaction_name] = factor[col1] * factor[col2]
+                        interaction_count += 1
+                        
+                        # 限制交互项数量
+                        if max_interactions and interaction_count >= max_interactions:
+                            break
+                    else:
+                        continue
             
             if max_interactions and interaction_count >= max_interactions:
                 break
@@ -244,6 +255,9 @@ class data_engineering:
             cols_to_round = [col for col in numeric_cols_for_rounding if col not in exclude_cols]
             factor[cols_to_round] = factor[cols_to_round].round(4)
             # 保存处理后的数据
-            factor.to_csv(f'../CSV/factor_interaction_{correlation_threshold}.csv', index=False)
+            if Reverse:
+                factor.to_csv(f'../CSV/factor_interaction_{correlation_threshold}_R.csv', index=False)
+            else:
+                factor.to_csv(f'../CSV/factor_interaction_{correlation_threshold}.csv', index=False)
             print(f"Created {len(interaction_data)} interaction terms, Total factors: {len(factor.columns)-2}")
         return
