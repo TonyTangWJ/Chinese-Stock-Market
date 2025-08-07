@@ -1498,7 +1498,7 @@ class K_Means_NN(nn.Module):
 
 
 class CNN(nn.Module):
-    def __init__(self, input_dim, output_dim=1, target=3, model_name="CNN"):
+    def __init__(self, input_dim, output_dim=1, target=3, alpha=0.8, l1_ratio=0.5, model_name="CNN"):
         super(CNN, self).__init__()
         
         import math
@@ -1550,6 +1550,8 @@ class CNN(nn.Module):
         self._initialize_weights()
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
+        self.alpha = alpha
+        self.l1_ratio = l1_ratio
         
         # 设备设置
         if torch.cuda.is_available():
@@ -1598,10 +1600,32 @@ class CNN(nn.Module):
         
         return x
 
+    def elastic_net_loss(self, outputs, targets):
+            """弹性网络损失函数：MSE + L1正则化 + L2正则化"""
+            mse_loss = self.loss_fn(outputs, targets)
+            l1_reg = 0
+            l2_reg = 0
+            
+            # 对卷积层和全连接层都应用正则化
+            for module in self.modules():
+                if isinstance(module, (nn.Conv2d, nn.Linear)):
+                    l1_reg += torch.sum(torch.abs(module.weight))
+                    l2_reg += torch.sum(module.weight ** 2)
+            
+            # 弹性网络正则化项
+            elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
+            
+            return mse_loss + elastic_reg
+    
     def train_step(self, train_loader, criterion=None):
         """训练步骤"""
         if criterion is None:
             criterion = self.loss_fn
+        elif criterion == 'elastic_net':
+            criterion = self.elastic_net_loss
+        else:
+            pass
+            
         
         self.train()
         total_loss = 0.0
