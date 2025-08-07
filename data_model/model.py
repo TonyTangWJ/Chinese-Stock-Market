@@ -1752,3 +1752,213 @@ class CNN(nn.Module):
             print("No checkpoint found. Starting from scratch.")
             return 0
 
+# 创建支持向量机模型
+# 创建支持向量机模型
+class SVM:
+    def __init__(self, target=3, kernel='rbf', C=1.0, gamma='scale', epsilon=0.1, 
+                 model_name="SVM"):
+        """
+        支持向量机回归模型
+        
+        参数:
+            target: 目标列索引 (默认3)
+            kernel: 核函数类型 ('linear', 'poly', 'rbf', 'sigmoid') (默认'rbf')
+            C: 正则化参数 (默认1.0)
+            gamma: 核函数系数 ('scale', 'auto', 或浮点数) (默认'scale')
+            epsilon: epsilon-SVR的epsilon参数 (默认0.1)
+            model_name: 模型名称 (默认"SVM")
+        """
+        from sklearn.svm import SVR
+        
+        self.model = SVR(
+            kernel=kernel,
+            C=C,
+            gamma=gamma,
+            epsilon=epsilon,
+            cache_size=200,  # 缓存大小(MB)
+            max_iter=-1      # 最大迭代次数(-1表示无限制)
+        )
+        
+        self.model_name = model_name
+        self.target = target
+        self.feature_names = None
+        
+        # 创建模型保存目录
+        os.makedirs("model/checkpoints", exist_ok=True)
+        os.makedirs("model/final_models", exist_ok=True)
+            
+        self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pkl"
+        self.model_path = f"model/final_models/{self.model_name}.pkl"
+
+    def fit(self, train_loader, epochs=None, patience=None, criterion=None):
+        """
+        训练SVM模型
+        
+        参数:
+            train_loader: 数据加载器 (PyTorch DataLoader格式)
+            epochs: 为了接口兼容保留 (SVM不需要)
+            patience: 为了接口兼容保留
+            criterion: 为了接口兼容保留
+        """
+        X_train, y_train = self._extract_data_from_loader(train_loader)
+        
+        # 数据标准化（SVM对特征范围敏感）
+        from sklearn.preprocessing import StandardScaler
+        self.scaler = StandardScaler()
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        
+        # 训练模型
+        self.model.fit(X_train_scaled, y_train)
+        self.save_model()
+        print(f"SVM trained with {len(X_train)} samples")
+
+    def predict(self, test_loader, label_mean=None, label_std=None):
+        """
+        预测并返回与PyTorch模型相同的格式
+        
+        参数:
+            test_loader: 测试数据加载器
+            label_mean: 标准化均值 (可选)
+            label_std: 标准化标准差 (可选)
+            
+        返回:
+            (pred, y_test) 元组，与PyTorch模型输出格式一致
+        """
+        X_test, y_test = self._extract_data_from_loader(test_loader)
+        
+        # 使用训练时的scaler进行标准化
+        if hasattr(self, 'scaler'):
+            X_test_scaled = self.scaler.transform(X_test)
+        else:
+            print("Warning: No scaler found. Using raw features.")
+            X_test_scaled = X_test
+        
+        pred = self.model.predict(X_test_scaled)
+
+        # 转换为与PyTorch模型相同的格式
+        if pred.ndim == 1:
+            pred = pred.reshape(-1, 1)
+        if y_test.ndim == 1:
+            y_test = y_test.reshape(-1, 1)
+        
+        # 反标准化处理
+        if label_mean is not None and label_std is not None:
+            if hasattr(label_mean, 'cpu'):  # 如果是PyTorch张量
+                label_mean = label_mean.cpu().numpy()
+            if hasattr(label_std, 'cpu'):
+                label_std = label_std.cpu().numpy()
+            
+            # 确保维度匹配
+            if label_mean.ndim == 0:
+                label_mean = label_mean.item()
+            if label_std.ndim == 0:
+                label_std = label_std.item()
+            
+            pred = pred * label_std + label_mean
+            y_test = y_test * label_std + label_mean
+            
+        return pred, y_test
+
+    def evaluate(self, test_loader):
+        """
+        计算nondemeaned R²分数
+        
+        参数:
+            test_loader: 测试数据加载器
+            
+        返回:
+            R²分数
+        """
+        X_test, y_test = self._extract_data_from_loader(test_loader)
+        
+        # 使用训练时的scaler进行标准化
+        if hasattr(self, 'scaler'):
+            X_test_scaled = self.scaler.transform(X_test)
+        else:
+            X_test_scaled = X_test
+        
+        pred = self.model.predict(X_test_scaled)
+        
+        # 确保非负
+        y_test = np.clip(y_test, a_min=0, a_max=None)
+        pred = np.clip(pred, a_min=0, a_max=None)
+        
+        # 计算nondemeaned R²
+        sse = np.sum((y_test - pred) ** 2)
+        ss = np.sum(y_test ** 2)
+        
+        return 0 if ss < 1e-8 else 1 - sse / ss
+
+    def _extract_data_from_loader(self, data_loader):
+        """
+        从PyTorch DataLoader中提取数据
+        
+        参数:
+            data_loader: PyTorch DataLoader
+            
+        返回:
+            (X, y) 元组
+        """
+        X_list, y_list = [], []
+        
+        for batch in data_loader:
+            X_list.append(batch[0].numpy())
+            y_list.append(batch[self.target].numpy())
+        
+        X = np.concatenate(X_list, axis=0)
+        y = np.concatenate(y_list, axis=0).ravel()  # SVM需要一维目标
+        
+        return X, y
+
+    def reset_model(self):
+        """重置模型（重新初始化）"""
+        from sklearn.svm import SVR
+        
+        # 保存原始参数
+        params = self.model.get_params()
+        self.model = SVR(**params)
+        
+        # 重置scaler
+        if hasattr(self, 'scaler'):
+            delattr(self, 'scaler')
+
+    def save_model(self, path=None):
+        """
+        保存模型到文件
+        
+        参数:
+            path: 自定义保存路径 (可选)
+        """
+        path = path or self.model_path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        # 保存模型和scaler
+        save_dict = {
+            'model': self.model,
+            'scaler': getattr(self, 'scaler', None),
+            'model_name': self.model_name,
+            'target': self.target
+        }
+        
+        joblib.dump(save_dict, path)
+        # print(f"SVM model successfully saved to {path}")
+
+    def load_model(self, path=None):
+        """
+        从文件加载模型
+        
+        参数:
+            path: 自定义加载路径 (可选)
+        """
+        path = path or self.model_path
+        
+        if os.path.exists(path):
+            save_dict = joblib.load(path)
+            self.model = save_dict['model']
+            
+            if save_dict['scaler'] is not None:
+                self.scaler = save_dict['scaler']
+            
+            # print(f"SVM model successfully loaded from {path}")
+        else:
+            print(f"Model file {path} not found")
