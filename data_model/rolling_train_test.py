@@ -148,7 +148,7 @@ class RollingTrainTest:
                     f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,max_drawdown,win_rate\n')
                 if self.count == 0:
                     f.write(f'{self.predictability_name}\n')
-                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics['max_drawdown']:.4f},{metrics["win_rate"]:.4f}\n')
+                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
         else:
             pass
         return
