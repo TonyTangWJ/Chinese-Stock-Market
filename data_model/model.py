@@ -2073,7 +2073,7 @@ class Transformer(nn.Module):
         """初始化权重"""
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
+                nn.init.normal_(module.weight, mean=0, std=1)
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
             elif isinstance(module, nn.LayerNorm):
