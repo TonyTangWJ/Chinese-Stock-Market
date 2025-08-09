@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm.auto import tqdm
 import numpy as np
-from utils import ClippedLeakyReLU, ScaledTanh
+from utils import ClippedLeakyReLU, ScaledTanh, PositionalEncoding
 from xgboost import XGBRegressor
 import joblib
 
@@ -1986,3 +1986,318 @@ class SVM:
             # print(f"SVM model successfully loaded from {path}")
         else:
             print(f"Model file {path} not found")
+
+
+class Transformer(nn.Module):
+    def __init__(self, input_dim, output_dim=1, target=3, seq_len=20, d_model=64, 
+                 nhead=8, num_layers=3, dim_feedforward=256, dropout=0.1, 
+                 alpha=0.8, l1_ratio=0.5, model_name="Transformer"):
+        """
+        Transformer模型用于金融时序预测
+        
+        参数:
+            input_dim: 输入特征维度
+            output_dim: 输出维度 (默认1)
+            target: 目标列索引 (默认3)
+            seq_len: 序列长度 (默认20)
+            d_model: 模型维度 (默认64)
+            nhead: 注意力头数 (默认8)
+            num_layers: Transformer层数 (默认3)
+            dim_feedforward: 前馈网络维度 (默认256)
+            dropout: Dropout比例 (默认0.1)
+            alpha: 弹性网络正则化强度 (默认0.8)
+            l1_ratio: L1正则化比例 (默认0.5)
+            model_name: 模型名称 (默认"Transformer")
+        """
+        super(Transformer, self).__init__()
+        
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.target = target
+        self.seq_len = seq_len
+        self.d_model = d_model
+        self.model_name = f"{model_name}_{num_layers}Layers"
+        self.alpha = alpha
+        self.l1_ratio = l1_ratio
+        
+        # 输入映射层
+        self.input_projection = nn.Linear(input_dim, d_model)
+        
+        # 位置编码
+        self.positional_encoding = PositionalEncoding(d_model, dropout, max_len=seq_len)
+        
+        # Transformer编码器
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            activation='relu',
+            batch_first=True
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, 
+            num_layers=num_layers
+        )
+        
+        # 输出层
+        self.output_projection = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, dim_feedforward // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim_feedforward // 2, output_dim)
+        )
+        
+        # 初始化
+        self._initialize_weights()
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.loss_fn = nn.MSELoss()
+        
+        # 设备设置
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
+        self.to(self.device)
+        
+        # 模型保存路径
+        if not os.path.exists("model/checkpoints"):
+            os.makedirs("model/checkpoints")
+        if not os.path.exists("model/final_models"):
+            os.makedirs("model/final_models")
+        self.checkpoint_path = f"model/checkpoints/{self.model_name}_checkpoint.pth"
+        self.model_path = f"model/final_models/{self.model_name}.pth"
+
+    def _initialize_weights(self):
+        """初始化权重"""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.constant_(module.weight, 1)
+                nn.init.constant_(module.bias, 0)
+
+    def forward(self, x):
+        """
+        前向传播
+        
+        参数:
+            x: 输入张量 (batch_size, seq_len, input_dim) 或 (batch_size, input_dim)
+        """
+        batch_size = x.size(0)
+        
+        # 如果输入是2D，重塑为序列格式
+        if x.dim() == 2:
+            # 将单个样本扩展为序列 (重复最后一个时间步)
+            x = x.unsqueeze(1).repeat(1, self.seq_len, 1)
+        
+        # 确保序列长度正确
+        if x.size(1) != self.seq_len:
+            if x.size(1) < self.seq_len:
+                # 如果序列太短，用最后一个时间步填充
+                padding = x[:, -1:, :].repeat(1, self.seq_len - x.size(1), 1)
+                x = torch.cat([x, padding], dim=1)
+            else:
+                # 如果序列太长，截取最后seq_len个时间步
+                x = x[:, -self.seq_len:, :]
+        
+        # 输入投影: (batch_size, seq_len, input_dim) -> (batch_size, seq_len, d_model)
+        x = self.input_projection(x)
+        
+        # 添加位置编码
+        x = self.positional_encoding(x)
+        
+        # Transformer编码器
+        x = self.transformer_encoder(x)
+        
+        # 使用最后一个时间步的输出
+        x = x[:, -1, :]  # (batch_size, d_model)
+        
+        # 输出投影
+        x = self.output_projection(x)
+        
+        return x
+
+    def elastic_net_loss(self, outputs, targets):
+        """弹性网络损失函数：MSE + L1正则化 + L2正则化"""
+        mse_loss = self.loss_fn(outputs, targets)
+        l1_reg = 0
+        l2_reg = 0
+        
+        # 对所有线性层应用正则化
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                l1_reg += torch.sum(torch.abs(module.weight))
+                l2_reg += torch.sum(module.weight ** 2)
+        
+        # 弹性网络正则化项
+        elastic_reg = self.alpha * (self.l1_ratio * l1_reg + (1 - self.l1_ratio) * l2_reg)
+        
+        return mse_loss + elastic_reg
+
+    def train_step(self, train_loader, criterion=None):
+        """训练步骤"""
+        if criterion is None:
+            criterion = self.loss_fn
+        elif criterion == 'elastic_net':
+            criterion = self.elastic_net_loss
+        else:
+            pass
+        
+        self.train()
+        total_loss = 0.0
+        
+        for train_data in train_loader:
+            inputs = train_data[0].to(self.device)
+            targets = train_data[self.target].to(self.device)
+            
+            if targets.dim() == 1:
+                targets = targets.unsqueeze(1)
+            
+            self.optimizer.zero_grad()
+            outputs = self.forward(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            
+            # 梯度裁剪，防止梯度爆炸
+            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+            
+            self.optimizer.step()
+            total_loss += loss.item()
+        
+        return total_loss / len(train_loader)
+
+    def fit(self, train_loader, epochs=100, resume_training=False, patience=5, criterion=None):
+        """训练主函数"""
+        start_epoch = 0
+        no_improvement_count = 0
+        
+        if resume_training:
+            start_epoch = self._load_checkpoint()
+            print(f"Resuming training from epoch {start_epoch + 1}")
+
+        prev_loss = float('inf')
+        for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
+            train_loss = self.train_step(train_loader, criterion)
+            
+            # 每10个epoch保存checkpoint
+            if (epoch + 1) % 10 == 0:
+                self._save_checkpoint(epoch)
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+
+            # 早停机制
+            if round(train_loss, 4) < round(prev_loss, 4) - 0.001:
+                prev_loss = train_loss
+                no_improvement_count = 0
+                self.save_model()
+            else:
+                no_improvement_count += 1
+                if no_improvement_count >= patience:
+                    break
+
+    def predict(self, test_loader, label_mean, label_std):
+        """预测方法"""
+        self.eval()
+        pred_list = []
+        act_list = []
+        
+        with torch.no_grad():
+            for test_data in test_loader:
+                data = test_data[0].to(self.device)
+                act_high = test_data[1].to(self.device)
+                act_low = test_data[2].to(self.device)
+                act_close = test_data[3].to(self.device)
+                
+                if act_high.dim() == 1:
+                    act_high = act_high.unsqueeze(1)
+                if act_low.dim() == 1:
+                    act_low = act_low.unsqueeze(1)
+                if act_close.dim() == 1:
+                    act_close = act_close.unsqueeze(1)
+                
+                act = torch.cat([act_high, act_low, act_close], dim=1)
+                act = act * label_std + label_mean
+                act_list.append(act.cpu().numpy())
+                
+                pred = self(data)
+                pred = pred * label_std + label_mean
+                pred_list.append(pred.cpu().numpy())
+        
+        pred = np.concatenate(pred_list, axis=0)
+        act = np.concatenate(act_list, axis=0)
+        return pred, act
+
+    def evaluate(self, test_loader):
+        """nondemeaned R² evaluation"""
+        self.eval()
+        total_sse = 0.0
+        total_ss = 0.0
+        
+        with torch.no_grad():
+            for test_data in test_loader:
+                inputs = test_data[0].to(self.device)
+                targets = test_data[self.target].to(self.device)
+                
+                if targets.dim() == 1:
+                    targets = targets.unsqueeze(1)
+                
+                outputs = self(inputs)
+                
+                # 确保非负
+                targets = torch.clamp(targets, min=0)
+                outputs = torch.clamp(outputs, min=0)
+                
+                # 计算误差
+                sse = torch.sum((targets - outputs) ** 2)
+                ss = torch.sum(targets ** 2)
+                total_sse += sse.item()
+                total_ss += ss.item()
+        
+        if total_ss < 1e-8:
+            return 0
+        else:
+            return 1 - total_sse / total_ss
+
+    def reset_model(self):
+        """重置模型"""
+        self._initialize_weights()
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+
+    def save_model(self, path=None):
+        """保存模型"""
+        if path is None:
+            path = self.model_path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(self.state_dict(), path)
+
+    def load_model(self, path=None):
+        """加载模型"""
+        if path is None:
+            path = self.model_path
+        self.load_state_dict(torch.load(path, map_location=self.device))
+
+    def _save_checkpoint(self, epoch):
+        """保存检查点"""
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'loss': self.loss_fn
+        }
+        torch.save(checkpoint, self.checkpoint_path)
+
+    def _load_checkpoint(self):
+        """加载检查点"""
+        if os.path.exists(self.checkpoint_path):
+            checkpoint = torch.load(self.checkpoint_path, weights_only=False, map_location=self.device)
+            self.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            return checkpoint['epoch']
+        else:
+            print("No checkpoint found. Starting from scratch.")
+            return 0
+
+
