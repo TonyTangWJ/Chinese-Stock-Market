@@ -45,13 +45,6 @@ class RollingTrainTest:
             pred, act = self.model.predict(self.test_loader, label_mean, label_std)
             # store the predictions
             self.pred_list.append(pred)
-            # keep the top 10 and bottom 10 predictions, change the others to 0, keep the order
-            long_indices = np.argsort(pred)[-10:]
-            short_indices = np.argsort(pred)[:10]
-            pred_top10 = np.zeros_like(pred)
-            pred_top10[long_indices] = pred[long_indices]
-            pred_top10[short_indices] = pred[short_indices]
-            self.pred_list_top10.append(pred_top10)
             # store the actual values
             self.act_list.append(act)
             self.predictability.append(result)
@@ -72,7 +65,6 @@ class RollingTrainTest:
             # self.model.reset_model()
         self.pred = np.concatenate(self.pred_list, axis=0)
         self.act = np.concatenate(self.act_list, axis=0)
-        self.pred_top10 = np.concatenate(self.pred_list_top10, axis=0)
         all_spent_time = round(time.time() - all_start_time, 2)
         print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability):.4f}")
         file = '../CSV/predictability.csv'
