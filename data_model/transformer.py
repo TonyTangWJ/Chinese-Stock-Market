@@ -15,7 +15,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 class Transformer(nn.Module):
     def __init__(self, input_dim, output_dim=1, target=3, seq_len=60, d_model=62, 
-                 nhead=8, num_layers=3, dim_feedforward=256, dropout=0.1, 
+                 nhead=1, num_layers=3, d_ff=256, dropout=0, p=10000,
                  alpha=0.8, l1_ratio=0.5, model_name="Transformer"):
         """
         Transformer模型用于金融时序预测
@@ -24,12 +24,12 @@ class Transformer(nn.Module):
             input_dim: 输入特征维度
             output_dim: 输出维度 (默认1)
             target: 目标列索引 (默认3)
-            seq_len: 序列长度 (默认58)
+            seq_len: 序列长度 (默认60)
             d_model: 模型维度 (默认62)
-            nhead: 注意力头数 (默认8)
+            nhead: 注意力头数 (默认1)
             num_layers: Transformer层数 (默认3)
-            dim_feedforward: 前馈网络维度 (默认256)
-            dropout: Dropout比例 (默认0.1)
+            d_ff: 前馈网络维度 (默认256)
+            dropout: Dropout比例 (默认0)
             alpha: 弹性网络正则化强度 (默认0.8)
             l1_ratio: L1正则化比例 (默认0.5)
             model_name: 模型名称 (默认"Transformer")
@@ -41,41 +41,35 @@ class Transformer(nn.Module):
         self.target = target
         self.seq_len = seq_len
         self.d_model = d_model
-        self.model_name = f"{model_name}_{num_layers}Layers"
+        self.p = p
+        self.nhead = nhead
+        self.num_layers = num_layers
+        self.d_ff = d_ff
+        self.dropout = dropout
+        self.model_name = f"{model_name}_{num_layers}Layers_{d_ff}FF_{p}P_{nhead}Heads"
         self.alpha = alpha
         self.l1_ratio = l1_ratio
         
         # 标准化
-        self.input_normalization = nn.LayerNorm(input_dim)
+        self.input_norm = nn.LayerNorm(self.input_dim)
         # 输入映射层
-        self.input_projection = nn.Linear(input_dim, d_model)
-        # 输入非线性激活函数, 将维度值转换为0-1变量
-        self.input_activation = nn.Sigmoid()
+        self.input_proj = nn.Linear(self.input_dim, self.d_model)
 
         # 位置编码
-        self.positional_encoding = PositionalEncoding(d_model, max_len=seq_len)
+        self.positional_encoding = PositionalEncoding(self.d_model, max_len=seq_len, p=self.p)
         
         # Transformer编码器
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=nhead,
-            dim_feedforward=dim_feedforward,
-            dropout=dropout,
-            activation='relu',
-            batch_first=True
-        )
-        self.transformer_encoder = nn.TransformerEncoder(
-            encoder_layer, 
-            num_layers=num_layers
+        self.transformer_encoder = TransformerEncoder(
+            self.d_model, self.nhead, self.num_layers, self.d_ff, dropout=self.dropout
         )
         
         # 输出层
-        self.output_projection = nn.Sequential(
-            nn.LayerNorm(d_model),
-            nn.Linear(d_model, dim_feedforward // 2),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(dim_feedforward // 2, output_dim)
+        self.output_proj = nn.Sequential(
+            nn.LayerNorm(self.d_model),
+            nn.Linear(self.d_model, self.d_ff // 2),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Dropout(self.dropout),
+            nn.Linear(self.d_ff // 2, self.output_dim)
         )
         
         # 初始化
@@ -131,25 +125,18 @@ class Transformer(nn.Module):
                 x = x[:, -self.seq_len:, :]
         
         # 输入投影: (batch_size, seq_len, input_dim) -> (batch_size, seq_len, d_model)
-        x = self.input_normalization(x)
-        x = self.input_projection(x)
+        x = self.input_norm(x)
+        x = self.input_proj(x, self.d_model)
         '''
         # encoding到0-1变量
         x = self.input_activation(x)
         '''
-
         # 添加位置编码
         x = self.positional_encoding(x)
-        
         # Transformer编码器
         x = self.transformer_encoder(x)
-        
-        # 使用最后一个时间步的输出
-        x = x[:, -1, :]  # (batch_size, d_model)
-        
         # 输出投影
-        x = self.output_projection(x)
-        
+        x = self.output_proj(x)
         return x
 
     def elastic_net_loss(self, outputs, targets):
@@ -230,9 +217,7 @@ class Transformer(nn.Module):
                     break
 
     def predict(self, test_loader, label_mean=None, label_std=None):
-        """
-        改进版：前期增长序列，后期滑动窗口
-        """
+        
         self.eval()
         pred_list = []
         act_list = []
@@ -245,41 +230,29 @@ class Transformer(nn.Module):
                 act_close = test_data[3].to(self.device) # [batch_size, timesteps]
                 
                 batch_size, timesteps, _ = data.shape
+                    
+                # 获取当前时间步的真实标签
+                current_act_high = act_high[:, 1].unsqueeze(1)
+                current_act_low = act_low[:, 2].unsqueeze(1)
+                current_act_close = act_close[:, 3].unsqueeze(1)
                 
-                for t in range(timesteps):
-                    if t < self.seq_len:
-                        # 前期：从第1个时间步开始，逐步增加序列长度
-                        start_idx = 0
-                        end_idx = t + 1
-                        current_data = data[:, start_idx:end_idx, :]
-                    else:
-                        # 后期：使用固定长度的滑动窗口
-                        start_idx = t - self.seq_len + 1
-                        end_idx = t + 1
-                        current_data = data[:, start_idx:end_idx, :]
-                    
-                    # 获取当前时间步的真实标签
-                    current_act_high = act_high[:, t].unsqueeze(1)
-                    current_act_low = act_low[:, t].unsqueeze(1)
-                    current_act_close = act_close[:, t].unsqueeze(1)
-                    
-                    # 组合实际值
-                    current_act = torch.cat([current_act_high, current_act_low, current_act_close], dim=1)
-                    
-                    # 反标准化
-                    if label_mean is not None and label_std is not None:
-                        current_act = current_act * label_std + label_mean
-                    
-                    act_list.append(current_act.cpu().numpy())
-                    
-                    # 预测
-                    pred = self(current_data)  # [batch_size, 1]
-                    
-                    # 反标准化预测值
-                    if label_mean is not None and label_std is not None:
-                        pred = pred * label_std[:, self.target-1:self.target] + label_mean[:, self.target-1:self.target]
-                    
-                    pred_list.append(pred.cpu().numpy())
+                # 组合实际值
+                current_act = torch.cat([current_act_high, current_act_low, current_act_close], dim=1)
+                
+                # 反标准化
+                if label_mean is not None and label_std is not None:
+                    current_act = current_act * label_std + label_mean
+                
+                act_list.append(current_act.cpu().numpy())
+                
+                # 预测
+                pred = self(data)  # [batch_size, 1]
+                
+                # 反标准化预测值
+                if label_mean is not None and label_std is not None:
+                    pred = pred * label_std[:, self.target-1:self.target] + label_mean[:, self.target-1:self.target]
+                
+                pred_list.append(pred.cpu().numpy())
         
         pred = np.concatenate(pred_list, axis=0)
         act = np.concatenate(act_list, axis=0)
@@ -359,12 +332,12 @@ class Transformer(nn.Module):
 class PositionalEncoding(nn.Module):
     """位置编码模块"""
 
-    def __init__(self, d_model, max_len=500):
+    def __init__(self, d_model, max_len=500, p=10000):
         super(PositionalEncoding, self).__init__()
 
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-np.log(10000.0) / d_model))
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-np.log(p) / d_model))
         
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
@@ -383,10 +356,8 @@ class PositionalEncoding(nn.Module):
         """
         # 自动生成掩码(任何特征维度上非零的位置视为有效)
         mask = (x.abs().sum(dim=-1) > 0).float()  # [batch_size, seq_len]
-        
         # 获取位置编码(自动截取到输入序列长度)
         pe = self.pe[:, :x.size(1), :]  # [1, seq_len, d_model]
-        
         # 应用掩码
         pe = pe * mask.unsqueeze(-1)  # [batch_size, seq_len, d_model]
         
@@ -395,44 +366,62 @@ class PositionalEncoding(nn.Module):
         
         return x
 
-class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, nhead, dropout=0.1):
+class MAttention(nn.Module):
+    def __init__(self, d_model, nhead):
         super().__init__()
-        assert d_model % nhead == 0
-        self.d_k = d_model // nhead
         self.nhead = nhead
+        if self.nhead <= 1:
+            # 不使用多头
+            self.d_k = d_model
+        else:
+            assert d_model % nhead == 0
+            self.d_k = d_model // nhead
         
         # 线性投影层
         self.w_q = nn.Linear(d_model, d_model)
         self.w_k = nn.Linear(d_model, d_model)
         self.w_v = nn.Linear(d_model, d_model)
         self.w_o = nn.Linear(d_model, d_model)
+
         
-        self.dropout = nn.Dropout(dropout)
-        
-    def forward(self, x, mask=None):
+    def forward(self, x, mask=True):
         """
         x: [batch_size, seq_len, d_model]
         mask: [batch_size, seq_len]
         """
         batch_size, seq_len, _ = x.shape
-        
-        # 1. 线性投影得到Q/K/V
-        Q = self.w_q(x).view(batch_size, seq_len, self.nhead, self.d_k).transpose(1, 2)  # [batch, nhead, seq_len, d_k]
-        K = self.w_k(x).view(batch_size, seq_len, self.nhead, self.d_k).transpose(1, 2)
-        V = self.w_v(x).view(batch_size, seq_len, self.nhead, self.d_k).transpose(1, 2)
-        
+        if self.nhead <= 1:
+            # 不使用多头注意力
+            Q = self.w_q(x).unsqueeze(1)  # [batch, 1, seq_len, d_model]
+            K = self.w_k(x).unsqueeze(1)
+            V = self.w_v(x).unsqueeze(1)
+        else:
+            # 1. 线性投影得到Q/K/V
+            Q = self.w_q(x).view(batch_size, seq_len, self.nhead, self.d_k).transpose(1, 2)  # [batch, nhead, seq_len, d_k]
+            K = self.w_k(x).view(batch_size, seq_len, self.nhead, self.d_k).transpose(1, 2)
+            V = self.w_v(x).view(batch_size, seq_len, self.nhead, self.d_k).transpose(1, 2)
+
         # 2. 计算缩放点积注意力
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)  # [batch, nhead, seq_len, seq_len]
         
-        # 3. 应用掩码（如处理股票数据中的padding）
+        # 3. 应用掩码（处理padding + 未来信息遮盖）
         if mask is not None:
-            mask = (x.abs().sum(dim=-1) > 0).float()
-            mask = mask.unsqueeze(1).unsqueeze(1)  # [batch, 1, 1, seq_len]
-            attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
+            # (1) 生成padding掩码（标记有效数据位置）
+            padding_mask = (x.abs().sum(dim=-1) > 0).float()  # [batch_size, seq_len]
+            padding_mask = padding_mask.unsqueeze(1).unsqueeze(1)  # [batch, 1, 1, seq_len]
+
+            # (2) 生成未来时间步掩码（右上半三角掩码，防止信息泄露）
+            future_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()  # [seq_len, seq_len]
+            future_mask = future_mask.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, seq_len]
+            future_mask = future_mask.to(x.device)  # 确保设备一致
+
+            # (3) 合并两种掩码（padding掩码 + 未来掩码）
+            combined_mask = (padding_mask == 0) | future_mask  # 任一条件为True时遮盖
+
+            # (4) 应用掩码到注意力分数
+            attn_scores = attn_scores.masked_fill(combined_mask, float('-inf'))
         
         attn_weights = F.softmax(attn_scores, dim=-1)
-        attn_weights = self.dropout(attn_weights)
         
         # 4. 加权求和
         output = torch.matmul(attn_weights, V)  # [batch, nhead, seq_len, d_k]
@@ -442,27 +431,27 @@ class MultiHeadAttention(nn.Module):
         return self.w_o(output)
 
 class PositionWiseFFN(nn.Module):
-    def __init__(self, d_model, d_ff, dropout=0.1):
+    def __init__(self, d_model, d_ff):
         super().__init__()
         self.linear1 = nn.Linear(d_model, d_ff)
         self.linear2 = nn.Linear(d_ff, d_model)
-        self.dropout = nn.Dropout(dropout)
+        self.LeakyReLU = nn.LeakyReLU(negative_slope=0.3)
         
     def forward(self, x):
-        return self.linear2(self.dropout(F.relu(self.linear1(x))))
+        return self.linear2(self.LeakyReLU(self.linear1(x)))
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model, nhead, d_ff, dropout=0.1):
+    def __init__(self, d_model, nhead, d_ff, dropout=0):
         super().__init__()
-        self.self_attn = MultiHeadAttention(d_model, nhead, dropout)
-        self.ffn = PositionWiseFFN(d_model, d_ff, dropout)
+        self.self_attn = MAttention(d_model, nhead)
+        self.ffn = PositionWiseFFN(d_model, d_ff)
         
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
         
-    def forward(self, x, mask=None):
+    def forward(self, x, mask=True):
         # 自注意力子层
         attn_output = self.self_attn(x, mask)
         x = x + self.dropout1(attn_output)
@@ -476,51 +465,18 @@ class TransformerEncoderLayer(nn.Module):
         return x
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, d_model, nhead, num_layers, d_ff, dropout=0.1):
+    def __init__(self, d_model, nhead, num_layers, d_ff, dropout=0):
         super().__init__()
         self.layers = nn.ModuleList([
             TransformerEncoderLayer(d_model, nhead, d_ff, dropout)
             for _ in range(num_layers)
         ])
-        
-    def forward(self, x, mask=None):
+
+    def forward(self, x, mask=True):
         for layer in self.layers:
             x = layer(x, mask)
         return x
 
-class StockTransformer(nn.Module):
-    def __init__(self, d_model=64, nhead=8, num_layers=6, d_ff=256, 
-                 dropout=0.1, output_dim=1):
-        super().__init__()
-        self.encoder = TransformerEncoder(d_model, nhead, num_layers, d_ff, dropout)
-        
-        # 输出层（适配股票预测任务）
-        self.output_proj = nn.Sequential(
-            nn.LayerNorm(d_model),
-            nn.Linear(d_model, d_ff//2),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(d_ff//2, output_dim)
-        )
-        
-    def forward(self, x, mask=None):
-        """
-        x: [batch_size, seq_len, d_model] 股票时序因子
-        mask: [batch_size, seq_len] 0表示padding位置
-        """
-        # 1. Transformer编码
-        x = self.encoder(x, mask)
-        
-        # 2. 取最后一个有效时间步（股票预测常用）
-        if mask is not None:
-            # 获取最后一个非padding位置
-            last_indices = mask.sum(dim=1) - 1  # [batch_size]
-            x = x[torch.arange(x.size(0)), last_indices]
-        else:
-            x = x[:, -1, :]
-            
-        # 3. 输出预测
-        return self.output_proj(x)
 
 class TFDataset(Dataset):
     
