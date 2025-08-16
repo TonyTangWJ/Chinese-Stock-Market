@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader, Dataset, Subset
 import copy
 import math
 import warnings
+from utils import RiskMetrics
+import time
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
@@ -74,7 +76,7 @@ class Transformer(nn.Module):
         
         # 初始化
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
         
         # 设备设置
@@ -96,7 +98,7 @@ class Transformer(nn.Module):
         """初始化权重"""
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=1)
+                nn.init.normal_(module.weight, mean=0, std=0.1)
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
             elif isinstance(module, nn.LayerNorm):
@@ -123,10 +125,10 @@ class Transformer(nn.Module):
             else:
                 # 如果序列太长，截取最后seq_len个时间步
                 x = x[:, -self.seq_len:, :]
-        
+
         # 输入投影: (batch_size, seq_len, input_dim) -> (batch_size, seq_len, d_model)
         x = self.input_norm(x)
-        x = self.input_proj(x, self.d_model)
+        x = self.input_proj(x)
         '''
         # encoding到0-1变量
         x = self.input_activation(x)
@@ -171,15 +173,32 @@ class Transformer(nn.Module):
         for train_data in train_loader:
             inputs = train_data[0].to(self.device)
             targets = train_data[self.target].to(self.device)
-            
+
             if targets.dim() == 1:
-                targets = targets.unsqueeze(1)
-            
+                targets = targets.unsqueeze(-1).unsqueeze(-1)
+            elif targets.dim() == 2:
+                targets = targets.unsqueeze(-1)
+            else:
+                pass
+
+            # padding targets
+            # 确保序列长度正确
+            if targets.size(1) != self.seq_len:
+                if targets.size(1) < self.seq_len:
+                    # 如果序列太短，用0填充
+                    padding_length = self.seq_len - targets.size(1)
+                    padding = torch.zeros(targets.size(0), padding_length, targets.size(2), device=targets.device)
+                    targets = torch.cat([targets, padding], dim=1)  # 在序列末尾填充0
+                else:
+                    # 如果序列太长，截取最后seq_len个时间步
+                    targets = targets[:, -self.seq_len:, :]
+
             self.optimizer.zero_grad()
             outputs = self.forward(inputs)
             loss = criterion(outputs, targets)
+            print (loss.shape)
+            print (loss[0,0,:])
             loss.backward()
-            
             # 梯度裁剪，防止梯度爆炸
             torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
             
@@ -200,12 +219,12 @@ class Transformer(nn.Module):
         prev_loss = float('inf')
         for epoch in tqdm(range(start_epoch, epochs), colour='#FA6780'):
             train_loss = self.train_step(train_loader, criterion)
-            
+            # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
+
             # 每10个epoch保存checkpoint
             if (epoch + 1) % 10 == 0:
                 self._save_checkpoint(epoch)
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
-
             # 早停机制
             if round(train_loss, 4) < round(prev_loss, 4) - 0.001:
                 prev_loss = train_loss
@@ -295,30 +314,27 @@ class Transformer(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
 
     def save_model(self, path=None):
-        """保存模型"""
         if path is None:
             path = self.model_path
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        os.makedirs(os.path.dirname(path), exist_ok=True) 
         torch.save(self.state_dict(), path)
 
+
     def load_model(self, path=None):
-        """加载模型"""
         if path is None:
             path = self.model_path
         self.load_state_dict(torch.load(path, map_location=self.device))
 
     def _save_checkpoint(self, epoch):
-        """保存检查点"""
         checkpoint = {
             'epoch': epoch,
             'model_state_dict': self.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'loss': self.loss_fn
+            'loss': self.elastic_net_loss
         }
         torch.save(checkpoint, self.checkpoint_path)
 
     def _load_checkpoint(self):
-        """加载检查点"""
         if os.path.exists(self.checkpoint_path):
             checkpoint = torch.load(self.checkpoint_path, weights_only=False, map_location=self.device)
             self.load_state_dict(checkpoint['model_state_dict'])
@@ -330,41 +346,47 @@ class Transformer(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    """位置编码模块"""
-
+    """
+    位置编码模块 (适配格式)
+    (batch_size, seq_len, d_model)
+    """
+    
     def __init__(self, d_model, max_len=500, p=10000):
-        super(PositionalEncoding, self).__init__()
-
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-np.log(p) / d_model))
+        super().__init__()
+        self.d_model = d_model
+        self.p = p
         
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
+        # 生成位置编码矩阵 [max_len, d_model]
+        position = torch.arange(max_len, dtype=torch.float).unsqueeze(1)  # [max_len, 1]
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(p) / d_model))  # [d_model//2]
         
-        self.register_buffer('pe', pe)
+        pe = torch.zeros(max_len, d_model)  # [max_len, d_model]
+        pe[:, 0::2] = torch.sin(position * div_term)  # 偶数位置
+        pe[:, 1::2] = torch.cos(position * div_term)  # 奇数位置
 
+        # 注册为buffer (不参与训练)
+        self.register_buffer('pe', pe.unsqueeze(0))  # [1, max_len, d_model]
+    
     def forward(self, x):
         """
         参数:
             x: Tensor, shape [batch_size, seq_len, d_model]
         返回:
-            Tuple[Tensor, Tensor]: 
-                - 添加位置编码后的张量(同输入形状)
-                - 自动生成的掩码 [batch_size, seq_len]
+            Tensor: 添加位置编码后的张量 [batch_size, seq_len, d_model]
         """
-        # 自动生成掩码(任何特征维度上非零的位置视为有效)
-        mask = (x.abs().sum(dim=-1) > 0).float()  # [batch_size, seq_len]
-        # 获取位置编码(自动截取到输入序列长度)
-        pe = self.pe[:, :x.size(1), :]  # [1, seq_len, d_model]
-        # 应用掩码
-        pe = pe * mask.unsqueeze(-1)  # [batch_size, seq_len, d_model]
+        # 1. 自动处理序列长度
+        seq_len = x.size(1)
+        pe = self.pe[:, :seq_len, :]  # 截取到实际序列长度 [1, seq_len, d_model]
         
-        # 广播机制将位置编码加到输入上
-        x = x + pe
+        # 2. 生成padding掩码 (True表示需要mask的位置)
+        mask = (x.abs().sum(dim=-1) == 0)  # [batch_size, seq_len]
+        mask = mask.unsqueeze(-1)  # [batch_size, seq_len, 1]
         
-        return x
+        # 3. 应用掩码并添加位置编码
+        pe = pe.expand_as(x)  # 扩展到batch维度 [batch_size, seq_len, d_model]
+        pe = pe.masked_fill(mask, 0.0)  # padding位置置零
+        
+        return x + pe  # 添加位置编码
 
 class MAttention(nn.Module):
     def __init__(self, d_model, nhead):
@@ -445,7 +467,7 @@ class TransformerEncoderLayer(nn.Module):
         super().__init__()
         self.self_attn = MAttention(d_model, nhead)
         self.ffn = PositionWiseFFN(d_model, d_ff)
-        
+
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
@@ -709,15 +731,16 @@ class TFDataLoader:
         # 设置数据集的时间范围为训练期
         n_timesteps = self.dataset.data_3d.shape[1]
         train_time_idx = int(n_timesteps * self.train_size)
-        self.dataset.set_time_range(0, train_time_idx)
+        self.data_train = copy.deepcopy(self.dataset)
+        self.data_train.set_time_range(0, train_time_idx)
 
         # 对label数据标准化
-        self.dataset.data_3d[:, :, self.dataset.n_features:] = (
-            self.dataset.data_3d[:, :, self.dataset.n_features:] - self.label_mean
+        self.data_train.data_3d[:, :, self.data_train.n_features:] = (
+            self.data_train.data_3d[:, :, self.data_train.n_features:] - self.label_mean
         ) / self.label_std
 
         return DataLoader(
-            self.dataset,
+            self.data_train,
             batch_size=self.batch_size, 
             shuffle=self.shuffle, 
             num_workers=self.num_workers
@@ -732,15 +755,16 @@ class TFDataLoader:
         n_timesteps = self.dataset.data_3d.shape[1]
         train_time_idx = int(n_timesteps * self.train_size)
         test_time_idx = train_time_idx + int(n_timesteps * self.test_size)
-        self.dataset.set_time_range(train_time_idx, test_time_idx)
+        self.data_test = copy.deepcopy(self.dataset)
+        self.data_test.set_time_range(train_time_idx, test_time_idx)
 
         # 对label数据标准化
-        self.dataset.data_3d[:, :, self.dataset.n_features:] = (
-            self.dataset.data_3d[:, :, self.dataset.n_features:] - self.label_mean
+        self.data_test.data_3d[:, :, self.data_test.n_features:] = (
+            self.data_test.data_3d[:, :, self.data_test.n_features:] - self.label_mean
         ) / self.label_std
 
         return DataLoader(
-            self.dataset,
+            self.data_test,
             batch_size=self.batch_size, 
             shuffle=False,
             num_workers=self.num_workers
@@ -811,5 +835,3 @@ class TFLoadData:
             
         return self.dataloader.get_test_loader(test_size=self.dataloader.test_size)
     
-
-
