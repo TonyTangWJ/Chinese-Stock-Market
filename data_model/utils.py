@@ -187,10 +187,10 @@ class MAttention(nn.Module):
 
 
 class PositionWiseFFN(nn.Module):
-    def __init__(self, d_model, d_ff, dropout=0):
+    def __init__(self, d_model, dropout=0):
         super().__init__()
-        self.w1 = nn.Linear(d_model, d_ff)
-        self.w2 = nn.Linear(d_ff, d_model)
+        self.w1 = nn.Linear(d_model, d_model*2)
+        self.w2 = nn.Linear(d_model*2, d_model)
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, x):

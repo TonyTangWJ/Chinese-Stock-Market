@@ -1990,19 +1990,18 @@ class SVM:
 
 class Encoder(nn.Module):
     def __init__(self, input_dim, output_dim=1, layer=2, target=3, d_model=128, nhead=1, 
-                 dropout=0, dff=256, alpha=0.8, l1_ratio=0.5, model_name="Encoder"):
+                 dropout=0, alpha=0.8, l1_ratio=0.5, model_name="Encoder"):
         super(Encoder, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.layer = layer
         self.target = target
-        self.model_name = model_name + f"_{layer}Layers_{nhead}Heads_{d_model}DModel_{dff}DFF_{dropout}Dropout"
+        self.model_name = model_name + f"_{layer}Layers_{nhead}Heads_{d_model}DModel_{dropout}Dropout"
         self.alpha = alpha
         self.l1_ratio = l1_ratio
         self.d_model = d_model
         self.nhead = nhead
         self.dropout = dropout
-        self.dff = dff
         
         # 确保d_model能被nhead整除
         if d_model % nhead != 0:
@@ -2021,8 +2020,7 @@ class Encoder(nn.Module):
         # Self-Attention机制 - 处理特征间的关系
         self.Mattention = TransformerEncoder(d_model=self.d_model, 
                                              nhead=self.nhead, 
-                                             num_layers=self.layer, 
-                                             d_ff=self.dff, 
+                                             num_layers=self.layer,
                                              dropout=self.dropout
                                              )
         
