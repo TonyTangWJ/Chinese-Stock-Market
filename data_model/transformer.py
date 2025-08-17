@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 class Transformer(nn.Module):
     def __init__(self, input_dim, output_dim=1, target=3, seq_len=60, d_model=62, 
-                 nhead=1, num_layers=3, d_ff=256, dropout=0, p=10000,
+                 nhead=1, num_layers=3, d_ff=256, p=10000,
                  alpha=0.8, l1_ratio=0.5, model_name="Transformer"):
         """
         Transformer模型用于金融时序预测
@@ -31,7 +31,6 @@ class Transformer(nn.Module):
             nhead: 注意力头数 (默认1)
             num_layers: Transformer层数 (默认3)
             d_ff: 前馈网络维度 (默认256)
-            dropout: Dropout比例 (默认0)
             alpha: 弹性网络正则化强度 (默认0.8)
             l1_ratio: L1正则化比例 (默认0.5)
             model_name: 模型名称 (默认"Transformer")
@@ -47,7 +46,6 @@ class Transformer(nn.Module):
         self.nhead = nhead
         self.num_layers = num_layers
         self.d_ff = d_ff
-        self.dropout = dropout
         self.model_name = f"{model_name}_{num_layers}Layers_{d_ff}FF_{p}P_{nhead}Heads"
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -62,22 +60,19 @@ class Transformer(nn.Module):
         
         # Transformer编码器
         self.transformer_encoder = TransformerEncoder(
-            self.d_model, self.nhead, self.num_layers, self.d_ff, dropout=self.dropout
+            self.d_model, self.nhead, self.num_layers, self.d_ff
         )
         
         # 输出层
         self.output_proj = nn.Sequential(
             nn.LayerNorm(self.d_model),
-            nn.Linear(self.d_model, self.d_ff // 2),
-            nn.LeakyReLU(negative_slope=0.3),
-            nn.Dropout(self.dropout),
-            nn.Linear(self.d_ff // 2, self.output_dim)
+            nn.Linear(self.d_model, self.output_dim)
         )
         
         # 初始化
         self._initialize_weights()
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = self.mse_loss_w
         
         # 设备设置
         if torch.cuda.is_available():
@@ -141,6 +136,34 @@ class Transformer(nn.Module):
         x = self.output_proj(x)
         return x
 
+    def mse_loss_w(self, outputs, targets, decay_rate=0.95):
+        """
+        带时间衰减权重的股票级别MSE
+        
+        参数:
+            outputs: 预测值 [batch_size, seq_len, 1]
+            targets: 真实值 [batch_size, seq_len, 1]
+            decay_rate: 时间衰减率 (0-1)，越大则近期权重越高
+        
+        返回:
+            loss: 加权后的平均损失
+        """
+        # 1. 生成时间衰减权重 [1, seq_len, 1]
+        weights = torch.tensor(
+            [decay_rate ** (self.seq_len - i - 1) for i in range(self.seq_len)],
+            device=outputs.device
+        ).view(1, self.seq_len, 1)
+        
+        # 2. 计算每个时间步的加权平方误差 [batch, seq, 1]
+        squared_errors = (outputs - targets).pow(2)
+        weighted_errors = weights * squared_errors
+        
+        # 3. 计算每支股票的加权MSE [batch,]
+        per_stock_loss = weighted_errors.mean(dim=[1, 2])  # 对时间步和特征维取平均
+        # 4. 对所有股票取平均
+        return per_stock_loss.mean()
+
+
     def elastic_net_loss(self, outputs, targets):
         """弹性网络损失函数：MSE + L1正则化 + L2正则化"""
         mse_loss = self.loss_fn(outputs, targets)
@@ -196,11 +219,9 @@ class Transformer(nn.Module):
             self.optimizer.zero_grad()
             outputs = self.forward(inputs)
             loss = criterion(outputs, targets)
-            print (loss.shape)
-            print (loss[0,0,:])
             loss.backward()
             # 梯度裁剪，防止梯度爆炸
-            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1)
             
             self.optimizer.step()
             total_loss += loss.item()
@@ -288,11 +309,27 @@ class Transformer(nn.Module):
                 inputs = test_data[0].to(self.device)
                 targets = test_data[self.target].to(self.device)
                 
-                if targets.dim() == 1:
-                    targets = targets.unsqueeze(1)
+            if targets.dim() == 1:
+                targets = targets.unsqueeze(-1).unsqueeze(-1)
+            elif targets.dim() == 2:
+                targets = targets.unsqueeze(-1)
+            else:
+                pass
+
+            # padding targets
+            # 确保序列长度正确
+            if targets.size(1) != self.seq_len:
+                if targets.size(1) < self.seq_len:
+                    # 如果序列太短，用0填充
+                    padding_length = self.seq_len - targets.size(1)
+                    padding = torch.zeros(targets.size(0), padding_length, targets.size(2), device=targets.device)
+                    targets = torch.cat([targets, padding], dim=1)  # 在序列末尾填充0
+                else:
+                    # 如果序列太长，截取最后seq_len个时间步
+                    targets = targets[:, -self.seq_len:, :]
                 
                 outputs = self(inputs)
-                
+
                 # 确保非负
                 targets = torch.clamp(targets, min=0)
                 outputs = torch.clamp(outputs, min=0)
@@ -442,15 +479,19 @@ class MAttention(nn.Module):
 
             # (4) 应用掩码到注意力分数
             attn_scores = attn_scores.masked_fill(combined_mask, float('-inf'))
+
         
         attn_weights = F.softmax(attn_scores, dim=-1)
-        
+        # 将nan替换为0
+        attn_weights = attn_weights.nan_to_num(0.0)
+
         # 4. 加权求和
         output = torch.matmul(attn_weights, V)  # [batch, nhead, seq_len, d_k]
         output = output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
+        output = self.w_o(output)
         
         # 5. 输出投影
-        return self.w_o(output)
+        return output
 
 class PositionWiseFFN(nn.Module):
     def __init__(self, d_model, d_ff):
@@ -463,34 +504,32 @@ class PositionWiseFFN(nn.Module):
         return self.linear2(self.LeakyReLU(self.linear1(x)))
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model, nhead, d_ff, dropout=0):
+    def __init__(self, d_model, nhead, d_ff):
         super().__init__()
         self.self_attn = MAttention(d_model, nhead)
         self.ffn = PositionWiseFFN(d_model, d_ff)
 
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
         
     def forward(self, x, mask=True):
         # 自注意力子层
         attn_output = self.self_attn(x, mask)
-        x = x + self.dropout1(attn_output)
+        x = x + attn_output
         x = self.norm1(x)
         
         # 前馈网络子层
         ffn_output = self.ffn(x)
-        x = x + self.dropout2(ffn_output)
+        x = x + ffn_output
         x = self.norm2(x)
         
         return x
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, d_model, nhead, num_layers, d_ff, dropout=0):
+    def __init__(self, d_model, nhead, num_layers, d_ff):
         super().__init__()
         self.layers = nn.ModuleList([
-            TransformerEncoderLayer(d_model, nhead, d_ff, dropout)
+            TransformerEncoderLayer(d_model, nhead, d_ff)
             for _ in range(num_layers)
         ])
 

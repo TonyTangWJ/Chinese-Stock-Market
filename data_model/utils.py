@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from dataset import MyDataset, MyDataLoader
 import numpy as np
+import math
 
 class LoadData():
     def __init__(self, factor, label, batch_size=32, shuffle=False, num_workers=0, train_size=0.5, test_size=0.1):
@@ -106,3 +108,130 @@ class ScaledTanh(nn.Module):
     def forward(self, x):
         return torch.tanh(x) * self.scale
 
+
+class MAttention(nn.Module):
+    def __init__(self, d_model, nhead, dropout=0):
+        super().__init__()
+        self.d_model = d_model
+        self.nhead = nhead
+        self.dropout = dropout
+        
+        # 确保d_model能被nhead整除
+        assert d_model % nhead == 0
+        self.d_k = d_model // nhead
+        
+        # Q, K, V线性投影层
+        self.w_q = nn.Linear(d_model, d_model, bias=True)
+        self.w_k = nn.Linear(d_model, d_model, bias=True)
+        self.w_v = nn.Linear(d_model, d_model, bias=True)
+        self.w_o = nn.Linear(d_model, d_model, bias=True)
+        self.dropout_layer = nn.Dropout(dropout)
+        
+    
+    def forward(self, x):
+        """
+        二维Feature-wise Attention
+        
+        参数:
+            x: 输入张量 [batch_size, d_model]
+            
+        返回:
+            output: 输出张量 [batch_size, d_model]
+        """
+        batch_size, d_model = x.shape
+        
+        # 1. 生成Q, K, V
+        Q = self.w_q(x)  # [batch_size, d_model]
+        K = self.w_k(x)  # [batch_size, d_model]
+        V = self.w_v(x)  # [batch_size, d_model]
+
+        if self.nhead > 1:
+            # 2. 重塑为多头形式
+            # Q: [batch_size, nhead, d_k]
+            # K: [batch_size, nhead, d_k]
+            Q = Q.view(batch_size, self.nhead, self.d_k)
+            K = K.view(batch_size, self.nhead, self.d_k)
+            V = V.view(batch_size, self.nhead, self.d_k)
+        
+            # 3. 计算注意力分数 - 在特征维度上计算
+            attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
+            
+            # 4. 计算注意力权重
+            attn_weights = F.softmax(attn_scores, dim=-1)  # [batch_size, nhead]
+            attn_weights = self.dropout_layer(attn_weights)
+
+            # 5. 加权求和
+            attn_weights = attn_weights.unsqueeze(-1)  # [batch_size, nhead, 1]
+            output = torch.matmul(attn_weights, V) 
+            
+            # 6. 拼接多头输出
+            output = output.transpose(1, 2).contiguous().view(batch_size, -1)  # [batch_size, d_model]
+            
+            # 7. 输出投影
+            output = self.w_o(output)
+        else:
+            # 3. 计算注意力分数 - 在特征维度上计算
+            attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
+            
+            # 4. 计算注意力权重
+            attn_weights = F.softmax(attn_scores, dim=-1)  # [batch_size, nhead]
+            attn_weights = self.dropout_layer(attn_weights)
+
+            # 5. 加权求和
+            output = torch.matmul(attn_weights, V) 
+            
+            # 7. 输出投影
+            output = self.w_o(output)
+
+        return output
+
+
+class PositionWiseFFN(nn.Module):
+    def __init__(self, d_model, d_ff, dropout=0):
+        super().__init__()
+        self.w1 = nn.Linear(d_model, d_ff)
+        self.w2 = nn.Linear(d_ff, d_model)
+        self.dropout = nn.Dropout(dropout)
+        
+    def forward(self, x):
+        x = self.w1(x)
+        x = nn.LeakyReLU(0.3)(x)
+        x = self.dropout(x)
+        x = self.w2(x)
+        return x
+
+
+class TransformerEncoderLayer(nn.Module):
+    def __init__(self, d_model, nhead, d_ff, dropout=0):
+        super().__init__()
+        self.self_attn = MAttention(d_model, nhead, dropout=dropout)
+        self.ffn = PositionWiseFFN(d_model, d_ff, dropout=dropout)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        
+    def forward(self, x):
+        # 自注意力子层
+        attn_output = self.self_attn(x)
+        x = x + attn_output
+        x = self.norm1(x)
+        
+        # 前馈网络子层
+        ffn_output = self.ffn(x)
+        x = x + ffn_output
+        x = self.norm2(x)
+        
+        return x
+
+
+class TransformerEncoder(nn.Module):
+    def __init__(self, d_model, nhead, num_layers, d_ff, dropout=0):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            TransformerEncoderLayer(d_model, nhead, d_ff, dropout=dropout)
+            for _ in range(num_layers)
+        ])
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
