@@ -202,10 +202,10 @@ class PositionWiseFFN(nn.Module):
 
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model, nhead, d_ff, dropout=0):
+    def __init__(self, d_model, nhead, dropout=0):
         super().__init__()
         self.self_attn = MAttention(d_model, nhead, dropout=dropout)
-        self.ffn = PositionWiseFFN(d_model, d_ff, dropout=dropout)
+        self.ffn = PositionWiseFFN(d_model, dropout=dropout)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         
@@ -224,10 +224,10 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, d_model, nhead, num_layers, d_ff, dropout=0):
+    def __init__(self, d_model, nhead, num_layers, dropout=0):
         super().__init__()
         self.layers = nn.ModuleList([
-            TransformerEncoderLayer(d_model, nhead, d_ff, dropout=dropout)
+            TransformerEncoderLayer(d_model, nhead, dropout=dropout)
             for _ in range(num_layers)
         ])
 
