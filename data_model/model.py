@@ -1989,14 +1989,15 @@ class SVM:
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, output_dim=1, layer=2, target=3, d_model=128, nhead=1, 
+    def __init__(self, input_dim, output_dim=1, nlayer=2, flayer=3,target=3, d_model=128, nhead=1, 
                  dropout=0, alpha=0.8, l1_ratio=0.5, model_name="Encoder"):
         super(Encoder, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
-        self.layer = layer
+        self.nlayer = nlayer
+        self.flayer = flayer
         self.target = target
-        self.model_name = model_name + f"_{layer}Layers_{nhead}Heads_{d_model}DModel_{dropout}Dropout"
+        self.model_name = model_name + f"_{nlayer}nLayers_{nhead}Heads_{flayer}Flayers_{d_model}DModel_{dropout}Dropout"
         self.alpha = alpha
         self.l1_ratio = l1_ratio
         self.d_model = d_model
@@ -2007,7 +2008,6 @@ class Encoder(nn.Module):
         if d_model % nhead != 0:
             d_model = nhead * (d_model // nhead)
             self.d_model = d_model
-            print(f"调整d_model为{d_model}以匹配nhead={nhead}")
         
         # 输入投影层 - 将input_dim映射到d_model
         self.input_proj = nn.Sequential(
@@ -2020,65 +2020,65 @@ class Encoder(nn.Module):
         # Self-Attention机制 - 处理特征间的关系
         self.Mattention = TransformerEncoder(d_model=self.d_model, 
                                              nhead=self.nhead, 
-                                             num_layers=self.layer,
+                                             num_layers=self.nlayer,
                                              dropout=self.dropout
                                              )
         
         # 输出层 - 根据layer数量设计不同的网络深度
-        if layer == 1:
+        if flayer == 1:
             self.output_layers = nn.Sequential(
                 nn.BatchNorm1d(d_model),
                 nn.Linear(d_model, output_dim)
             )
-        elif layer == 2:
+        elif flayer == 2:
             self.output_layers = nn.Sequential(
                 nn.BatchNorm1d(d_model),
-                nn.Linear(d_model, d_model // 2),
-                nn.BatchNorm1d(d_model // 2),
+                nn.Linear(d_model, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 2, output_dim)
+                nn.Linear(32, output_dim)
             )
-        elif layer == 3:
+        elif flayer == 3:
             self.output_layers = nn.Sequential(
                 nn.BatchNorm1d(d_model),
-                nn.Linear(d_model, d_model // 2),
-                nn.BatchNorm1d(d_model // 2),
+                nn.Linear(d_model, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 2, d_model // 4),
-                nn.BatchNorm1d(d_model // 4),
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 4, output_dim)
+                nn.Linear(16, output_dim)
             )
-        elif layer == 4:
+        elif flayer == 4:
             self.output_layers = nn.Sequential(
                 nn.BatchNorm1d(d_model),
-                nn.Linear(d_model, d_model // 2),
-                nn.BatchNorm1d(d_model // 2),
+                nn.Linear(d_model, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 2, d_model // 4),
-                nn.BatchNorm1d(d_model // 4),
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 4, d_model // 8),
-                nn.BatchNorm1d(d_model // 8),
+                nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 8, output_dim)
+                nn.Linear(8, output_dim)
             )
-        elif layer == 5:
+        elif flayer == 5:
             self.output_layers = nn.Sequential(
                 nn.BatchNorm1d(d_model),
-                nn.Linear(d_model, d_model // 2),
-                nn.BatchNorm1d(d_model // 2),
+                nn.Linear(d_model, 32),
+                nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 2, d_model // 4),
-                nn.BatchNorm1d(d_model // 4),
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 4, d_model // 8),
-                nn.BatchNorm1d(d_model // 8),
+                nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 8, d_model // 16),
-                nn.BatchNorm1d(d_model // 16),
+                nn.Linear(8, 4),
+                nn.BatchNorm1d(4),
                 nn.LeakyReLU(0.3),
-                nn.Linear(d_model // 16, output_dim)
+                nn.Linear(4, output_dim)
             )
         else:
             raise ValueError("Supported layers are 1 to 5.")

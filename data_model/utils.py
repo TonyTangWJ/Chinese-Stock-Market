@@ -110,7 +110,7 @@ class ScaledTanh(nn.Module):
 
 
 class MAttention(nn.Module):
-    def __init__(self, d_model, nhead, dropout=0):
+    def __init__(self, d_model, nhead, dropout=None):
         super().__init__()
         self.d_model = d_model
         self.nhead = nhead
@@ -125,9 +125,9 @@ class MAttention(nn.Module):
         self.w_k = nn.Linear(d_model, d_model, bias=True)
         self.w_v = nn.Linear(d_model, d_model, bias=True)
         self.w_o = nn.Linear(d_model, d_model, bias=True)
-        self.dropout_layer = nn.Dropout(dropout)
-        
-    
+        self.dropout_layer = nn.Dropout(dropout) if dropout is not None else nn.Identity()
+
+
     def forward(self, x):
         """
         二维Feature-wise Attention
@@ -158,12 +158,11 @@ class MAttention(nn.Module):
             
             # 4. 计算注意力权重
             attn_weights = F.softmax(attn_scores, dim=-1)  # [batch_size, nhead]
-            attn_weights = self.dropout_layer(attn_weights)
+            attn_weights = self.dropout_layer(attn_weights) if self.dropout_layer is not None else attn_weights
 
             # 5. 加权求和
-            attn_weights = attn_weights.unsqueeze(-1)  # [batch_size, nhead, 1]
             output = torch.matmul(attn_weights, V) 
-            
+
             # 6. 拼接多头输出
             output = output.transpose(1, 2).contiguous().view(batch_size, -1)  # [batch_size, d_model]
             
@@ -175,7 +174,7 @@ class MAttention(nn.Module):
             
             # 4. 计算注意力权重
             attn_weights = F.softmax(attn_scores, dim=-1)  # [batch_size, nhead]
-            attn_weights = self.dropout_layer(attn_weights)
+            attn_weights = self.dropout_layer(attn_weights) if self.dropout_layer is not None else attn_weights
 
             # 5. 加权求和
             output = torch.matmul(attn_weights, V) 
@@ -187,11 +186,11 @@ class MAttention(nn.Module):
 
 
 class PositionWiseFFN(nn.Module):
-    def __init__(self, d_model, dropout=0):
+    def __init__(self, d_model, dropout=None):
         super().__init__()
         self.w1 = nn.Linear(d_model, d_model*2)
         self.w2 = nn.Linear(d_model*2, d_model)
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout) if dropout is not None else nn.Identity()
         
     def forward(self, x):
         x = self.w1(x)
@@ -202,7 +201,7 @@ class PositionWiseFFN(nn.Module):
 
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model, nhead, dropout=0):
+    def __init__(self, d_model, nhead, dropout=None):
         super().__init__()
         self.self_attn = MAttention(d_model, nhead, dropout=dropout)
         self.ffn = PositionWiseFFN(d_model, dropout=dropout)
@@ -224,7 +223,7 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, d_model, nhead, num_layers, dropout=0):
+    def __init__(self, d_model, nhead, num_layers, dropout=None):
         super().__init__()
         self.layers = nn.ModuleList([
             TransformerEncoderLayer(d_model, nhead, dropout=dropout)
