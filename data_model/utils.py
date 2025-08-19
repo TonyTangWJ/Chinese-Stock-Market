@@ -205,8 +205,8 @@ class TransformerEncoderLayer(nn.Module):
         super().__init__()
         self.self_attn = MAttention(d_model, nhead, dropout=dropout)
         self.ffn = PositionWiseFFN(d_model, dropout=dropout)
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+        self.norm1 = nn.BatchNorm1d(d_model)
+        self.norm2 = nn.BatchNorm1d(d_model)
         
     def forward(self, x):
         # 自注意力子层

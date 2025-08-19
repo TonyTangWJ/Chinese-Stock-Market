@@ -2013,7 +2013,7 @@ class Encoder(nn.Module):
         self.input_proj = nn.Sequential(
             nn.BatchNorm1d(input_dim),
             nn.Linear(input_dim, d_model),
-            nn.LayerNorm(d_model),
+            nn.BatchNorm1d(d_model),
             nn.LeakyReLU(0.3)
         )
         
@@ -2112,7 +2112,7 @@ class Encoder(nn.Module):
                 nn.init.normal_(module.weight, mean=0, std=1)  # 使用较小的标准差
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
-            elif isinstance(module, (nn.BatchNorm1d, nn.LayerNorm)):
+            elif isinstance(module, (nn.BatchNorm1d)):
                 nn.init.constant_(module.weight, 1)
                 nn.init.constant_(module.bias, 0)
 
