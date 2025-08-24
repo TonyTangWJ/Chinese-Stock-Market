@@ -2087,7 +2087,7 @@ class Encoder(nn.Module):
         self._initialize_weights()
         
         # 优化器和损失函数
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
         
         # 设备设置
@@ -2109,7 +2109,7 @@ class Encoder(nn.Module):
         """初始化权重"""
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=1)  # 使用较小的标准差
+                nn.init.normal_(module.weight, mean=0, std=0.1)  # 使用较小的标准差
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
             elif isinstance(module, (nn.BatchNorm1d)):
@@ -2283,7 +2283,7 @@ class Encoder(nn.Module):
     def reset_model(self):
         """重置模型"""
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
 
     def save_model(self, path=None):
         """保存模型"""
