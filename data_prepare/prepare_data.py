@@ -261,3 +261,42 @@ class data_engineering:
                 factor.to_csv(f'../CSV/factor_interaction_{correlation_threshold}.csv', index=False)
             print(f"Created {len(interaction_data)} interaction terms, Total factors: {len(factor.columns)-2}")
         return
+    
+    # drop a group of data, test the impact of this group
+    def create_group_factors(self):
+        """
+        创建十个单独的数据集，去掉某一组因子，测试该组因子对模型的影响
+        """
+        factor = pd.read_csv('../CSV/factor_ma12.csv')
+        structure = ['assets_to_eqt', 'ca_to_assets', 'currentdebt_to_debt', 'debt_to_assets', 'longdebttoequity']
+        operatin = ['caturn', 'fa_apnpturn', 'fa_arnrturn', 'fa_cashturnratio', 'inv_turn', 'turn_days']
+        PS = ['bps', 'cfps', 'q_eps', 'diluted2_eps']
+        cash = ['cftoassets', 'fcftocf', 'icftocf', 'netprofitcashcover', 'ocftocf', 'ocf_to_opincome']
+        debtpay = ['current_ratio', 'ebitda_to_debt', 'ebit_to_interest', 'debt_to_eqt', 'ocf_to_interestdebt', 'quick_ratio']
+        profit = ['dtprofit_to_profit', 'ebit_of_gr', 'expense_of_sales', 'grossprofit_margin', 'netprofit_margin', 'op_of_gr', 'pchsaletoasset', 'pchtax', 'profit_to_gr', 'roa', 'roe', 'roic']
+        growth = ['pchequity', 'pchgm_pchsale', 'q_sales_yoy', 'yoy_assets', 'equity_yoy', 'tr_yoy', 'yoydebt', 'basic_eps_yoy', 'cfps_yoy', 'op_yoy', 'netprofit_yoy']
+        profit_quality = ['dtprofit_to_profit', 'tax_to_ebt']
+        divident = ['stk_div', 'cash_div_tax', 'sum_hold_ratio']
+        relative = ['total_mv', 'pb', 'pcf', 'pe_ttm', 'ps_ttm', 'turnover_rate', 'volume_ratio', 'dv_ttm']
+
+        # 创建十个单独的数据集，去掉某一组因子，测试该组因子对模型的影响
+        factor_dict = {
+            'structure': structure,
+            'operatin': operatin,
+            'PS': PS,
+            'cash': cash,
+            'debtpay': debtpay,
+            'profit': profit,
+            'growth': growth,
+            'profit_quality': profit_quality,
+            'divident': divident,
+            'relative': relative
+        }
+
+        for key, value in factor_dict.items():
+            factor_drop_one = factor.drop(columns=value)
+            factor_drop_one.to_csv(f'../CSV/factor_{key}_R.csv', index=False)
+            print (f"Created factor dataset without {key}, Total factors: {len(factor_drop_one.columns)-2}")
+        return
+        
+    
