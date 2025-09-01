@@ -263,11 +263,14 @@ class data_engineering:
         return
     
     # drop a group of data, test the impact of this group
-    def create_group_factors(self):
+    def create_group_factors(self, ma=True):
         """
         创建十个单独的数据集，去掉某一组因子，测试该组因子对模型的影响
         """
-        factor = pd.read_csv('../CSV/factor_ma12.csv')
+        if ma:
+            factor = pd.read_csv('../CSV/factor_ma12.csv')
+        else:
+            factor = pd.read_csv('../CSV/factor_cleaned.csv')
         structure = ['assets_to_eqt', 'ca_to_assets', 'currentdebt_to_debt', 'debt_to_assets', 'longdebttoequity']
         operatin = ['caturn', 'fa_apnpturn', 'fa_arnrturn', 'fa_cashturnratio', 'inv_turn', 'turn_days']
         PS = ['bps', 'cfps', 'q_eps', 'diluted2_eps']
@@ -295,7 +298,10 @@ class data_engineering:
 
         for key, value in factor_dict.items():
             factor_drop_one = factor.drop(columns=value)
-            factor_drop_one.to_csv(f'../CSV/factor_{key}_R.csv', index=False)
+            if ma:
+                factor_drop_one.to_csv(f'../CSV/factor_{key}_R.csv', index=False)
+            else:
+                factor_drop_one.to_csv(f'../CSV/factor_cleaned_{key}_R.csv', index=False)
             print (f"Created factor dataset without {key}, Total factors: {len(factor_drop_one.columns)-2}")
         return
         
