@@ -54,7 +54,7 @@ class RollingTrainTest:
             print (f'No.{_+1} Train Predictability: {result_train:.4f}')
             # save test predictability and train predictability
             os.makedirs('CSV_final', exist_ok=True)
-            file = f'../CSV_final/details/predictability_{self.model_name}.csv'
+            file = f'../CSV_final/details/predictability_details/{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode) as f:
                 if mode == 'w':
@@ -116,7 +116,7 @@ class RollingTrainTest:
                 'cum_returns': cum_returns}
             )
             os.makedirs('CSV_final', exist_ok=True)
-            file = f'../CSV_final/details/profit_details_{self.model_name}.csv'
+            file = f'../CSV_final/details/profit_details/{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode, encoding='utf-8', newline="") as f:
                 if mode == 'w':
@@ -183,7 +183,7 @@ class RollingTrainTest:
                 'cum_returns': cum_returns}
             )
             os.makedirs('CSV_final', exist_ok=True)
-            file = f'../CSV_final/details/profit_details_{self.model_name}.csv'
+            file = f'../CSV_final/details/profit_details/{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode, encoding='utf-8', newline="") as f:
                 if mode == 'w':
