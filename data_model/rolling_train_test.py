@@ -53,8 +53,8 @@ class RollingTrainTest:
             print (f'No.{_+1} Test Predictability: {result:.4f}')
             print (f'No.{_+1} Train Predictability: {result_train:.4f}')
             # save test predictability and train predictability
-            os.makedirs('CSV', exist_ok=True)
-            file = f'../CSV/S_predictability_{self.model_name}.csv'
+            os.makedirs('CSV_final', exist_ok=True)
+            file = f'../CSV_final/details/predictability_{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode) as f:
                 if mode == 'w':
@@ -68,15 +68,15 @@ class RollingTrainTest:
         self.act = np.concatenate(self.act_list, axis=0)
         all_spent_time = round(time.time() - all_start_time, 2)
         print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability):.4f}")
-        os.makedirs('CSV', exist_ok=True)
-        file = '../CSV/S_predictability.csv'
+        os.makedirs('CSV_final', exist_ok=True)
+        file = '../CSV_final/predictability.csv'
         mode = 'a' if os.path.exists(file) else 'w'
         with open(file, mode) as f:
             if mode == 'w':
-                f.write('model_name,predictability,all_spent_time\n')
+                f.write('Time,model_name,predictability,all_spent_time\n')
             if self.count == 0:
                 f.write(f'{self.predictability_name}\n')
-            f.write(f'{self.model_name},{sum(self.predictability) / len(self.predictability):.4f},{all_spent_time:.2f}s\n')
+            f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{sum(self.predictability) / len(self.predictability):.4f},{all_spent_time:.2f}s\n')
 
 
     def backtest(self, trade_mode=1, data_frequency='monthly'):
@@ -115,8 +115,8 @@ class RollingTrainTest:
                 'returns': period_returns,
                 'cum_returns': cum_returns}
             )
-            os.makedirs('CSV', exist_ok=True)
-            file = f'../CSV/X_predictions_{self.model_name}.csv'
+            os.makedirs('CSV_final', exist_ok=True)
+            file = f'../CSV_final/details/profit_details_{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode, encoding='utf-8', newline="") as f:
                 if mode == 'w':
@@ -136,15 +136,15 @@ class RollingTrainTest:
             metrics = risk_metrics.calculate_metrics(period_returns)
             
             # 保存到CSV
-            os.makedirs('CSV', exist_ok=True)
-            file_path = '../CSV/X_profit_indicators.csv'
+            os.makedirs('CSV_final', exist_ok=True)
+            file_path = '../CSV_final/profit.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,max_drawdown,win_rate\n')
+                    f.write('Time,model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,max_drawdown,win_rate\n')
                 if self.count == 0:
                     f.write(f'{self.predictability_name}\n')
-                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
+                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
             
         elif trade_mode == 2:
             pred_high = self.pred[:,-3]
@@ -182,8 +182,8 @@ class RollingTrainTest:
                 'returns': period_returns,
                 'cum_returns': cum_returns}
             )
-            os.makedirs('CSV', exist_ok=True)
-            file = f'../CSV/Z_predictions_{self.model_name}.csv'
+            os.makedirs('CSV_final', exist_ok=True)
+            file = f'../CSV_final/details/profit_details_{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode, encoding='utf-8', newline="") as f:
                 if mode == 'w':
@@ -203,15 +203,15 @@ class RollingTrainTest:
             metrics = risk_metrics.calculate_metrics(period_returns)
             
             # 保存到CSV
-            os.makedirs('CSV', exist_ok=True)
-            file_path = '../CSV/Z_profit_indicators.csv'
+            os.makedirs('CSV_final', exist_ok=True)
+            file_path = '../CSV_final/profit.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,max_drawdown,win_rate\n')
+                    f.write('Time,model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,max_drawdown,win_rate\n')
                 if self.count == 0:
                     f.write(f'{self.predictability_name}\n')
-                f.write(f'{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
+                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
         
         self.SR = round(metrics["sharpe_ratio"],4)
         return 
