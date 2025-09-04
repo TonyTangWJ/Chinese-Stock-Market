@@ -18,7 +18,7 @@ class LinearRegression(nn.Module):
             )
         
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.target = target
         self.model_name = model_name
         self.loss_fn = nn.MSELoss()
@@ -39,13 +39,13 @@ class LinearRegression(nn.Module):
     
     def reset_model(self):
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         return
 
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=1)
+                nn.init.normal_(module.weight, mean=0, std=0.1)
                 nn.init.constant_(module.bias, 0)
             elif isinstance(module, nn.BatchNorm1d):
                 nn.init.constant_(module.weight, 1)
@@ -196,7 +196,7 @@ class ElasticNet(nn.Module):
             )
         
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.model_name = model_name
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -235,7 +235,7 @@ class ElasticNet(nn.Module):
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=1)
+                nn.init.normal_(module.weight, mean=0, std=0.1)
                 nn.init.constant_(module.bias, 0)
             elif isinstance(module, nn.BatchNorm1d):
                 nn.init.constant_(module.weight, 1)
@@ -244,7 +244,7 @@ class ElasticNet(nn.Module):
     def reset_model(self):
         # 修复：重新初始化所有权重而不是引用不存在的 self.linear
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         return
     
 
@@ -444,7 +444,7 @@ class NN(nn.Module):
             raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
         
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
         self.model_name = model_name + f"_{layer}Layers"
         self.alpha = alpha
@@ -466,7 +466,7 @@ class NN(nn.Module):
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, mean=0, std=1)
+                nn.init.normal_(module.weight, mean=0, std=0.1)
                 nn.init.constant_(module.bias, 0)
             elif isinstance(module, nn.BatchNorm1d):
                 nn.init.constant_(module.weight, 1)
@@ -490,7 +490,7 @@ class NN(nn.Module):
 
     def reset_model(self):
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         return
 
 
@@ -1005,7 +1005,7 @@ class K_Means_NN(nn.Module):
         self._initialize_weights()
         
         # 优化器和损失函数
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
         
         # 设备设置
@@ -1351,7 +1351,7 @@ class K_Means_NN(nn.Module):
             self.cluster_models[f'cluster_{i}'] = self._create_network(self.input_dim, self.output_dim, self.layer)
         
         self._initialize_weights()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.is_fitted = False
         self.cluster_labels = None
         
