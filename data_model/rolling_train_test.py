@@ -54,7 +54,7 @@ class RollingTrainTest:
             print (f'No.{_+1} Train Predictability: {result_train:.4f}')
             # save test predictability and train predictability
             os.makedirs('CSV_final', exist_ok=True)
-            file = f'../CSV_final/details/predictability_details/{self.model_name}.csv'
+            file = f'../CSV_final/importance/predictability_details/{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode) as f:
                 if mode == 'w':
@@ -69,7 +69,7 @@ class RollingTrainTest:
         all_spent_time = round(time.time() - all_start_time, 2)
         print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability):.4f}")
         os.makedirs('CSV_final', exist_ok=True)
-        file = '../CSV_final/predictability.csv'
+        file = '../CSV_final/importance/predictability.csv'
         mode = 'a' if os.path.exists(file) else 'w'
         with open(file, mode) as f:
             if mode == 'w':
@@ -116,7 +116,7 @@ class RollingTrainTest:
                 'cum_returns': cum_returns}
             )
             os.makedirs('CSV_final', exist_ok=True)
-            file = f'../CSV_final/details/profit_details/{self.model_name}.csv'
+            file = f'../CSV_final/importance/profit_details/{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode, encoding='utf-8', newline="") as f:
                 if mode == 'w':
@@ -137,7 +137,7 @@ class RollingTrainTest:
             
             # 保存到CSV
             os.makedirs('CSV_final', exist_ok=True)
-            file_path = '../CSV_final/profit.csv'
+            file_path = '../CSV_final/importance/profit.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
@@ -183,7 +183,7 @@ class RollingTrainTest:
                 'cum_returns': cum_returns}
             )
             os.makedirs('CSV_final', exist_ok=True)
-            file = f'../CSV_final/details/profit_details/{self.model_name}.csv'
+            file = f'../CSV_final/importance/profit_details/{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode, encoding='utf-8', newline="") as f:
                 if mode == 'w':
@@ -204,7 +204,7 @@ class RollingTrainTest:
             
             # 保存到CSV
             os.makedirs('CSV_final', exist_ok=True)
-            file_path = '../CSV_final/profit.csv'
+            file_path = '../CSV_final/importance/profit.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
@@ -213,7 +213,7 @@ class RollingTrainTest:
                     f.write(f'{self.predictability_name}\n')
                 f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
         
-        self.SR = round(metrics["sharpe_ratio"],4)
+        self.Return = round(metrics["mean_return"],4)
         return 
     
         
