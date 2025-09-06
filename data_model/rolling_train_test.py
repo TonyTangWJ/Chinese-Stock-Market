@@ -211,6 +211,7 @@ class RollingTrainTest:
                 f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
         
         self.Return = round(metrics["mean_return"],4)
+        self.SR = round(metrics["sharpe_ratio"],4)
         return 
     
         
