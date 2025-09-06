@@ -53,7 +53,6 @@ class RollingTrainTest:
             print (f'No.{_+1} Test Predictability: {result:.4f}')
             print (f'No.{_+1} Train Predictability: {result_train:.4f}')
             # save test predictability and train predictability
-            os.makedirs('CSV_final', exist_ok=True)
             file = f'../CSV_final/importance/predictability_details/{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode) as f:
@@ -68,7 +67,6 @@ class RollingTrainTest:
         self.act = np.concatenate(self.act_list, axis=0)
         all_spent_time = round(time.time() - all_start_time, 2)
         print(f"Predictability of {self.model_name}: {sum(self.predictability) / len(self.predictability):.4f}")
-        os.makedirs('CSV_final', exist_ok=True)
         file = '../CSV_final/importance/predictability.csv'
         mode = 'a' if os.path.exists(file) else 'w'
         with open(file, mode) as f:
@@ -115,7 +113,7 @@ class RollingTrainTest:
                 'returns': period_returns,
                 'cum_returns': cum_returns}
             )
-            os.makedirs('CSV_final', exist_ok=True)
+
             file = f'../CSV_final/importance/profit_details/{self.model_name}.csv'
             mode = 'a' if os.path.exists(file) else 'w'
             with open(file, mode, encoding='utf-8', newline="") as f:
@@ -136,7 +134,6 @@ class RollingTrainTest:
             metrics = risk_metrics.calculate_metrics(period_returns)
             
             # 保存到CSV
-            os.makedirs('CSV_final', exist_ok=True)
             file_path = '../CSV_final/importance/profit.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
