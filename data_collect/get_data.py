@@ -439,7 +439,7 @@ class get_data:
         # foreward fill none
         data.ffill(inplace=True)
         data = data.applymap(lambda x: None if pd.isnull(x) else str(x) if isinstance(x, (int, float)) else x)
-        sql().insert_data(data, 'A_final_factor_monthly')
+        sql().insert_data(data, 'a_final_factor_monthly')
         return
     
     # collect stock monthly return data
