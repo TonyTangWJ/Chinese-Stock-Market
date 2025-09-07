@@ -79,14 +79,7 @@ class MyDataLoader(DataLoader):
         if train_size is not None:
             self.train_size = train_size
         # get normalization parameters
-        # self.dataset.get_factors_norm_params(train_size=self.train_size)
         self.dataset.get_labels_norm_params(train_size=self.train_size)
-        # self.factor_min = self.dataset.factor_min
-        # self.factor_max = self.dataset.factor_max
-        # self.factor_mean = self.dataset.factor_mean
-        # self.factor_std = self.dataset.factor_std
-        # self.label_min = self.dataset.label_min
-        # self.label_max = self.dataset.label_max
         self.label_mean = self.dataset.label_mean
         self.label_std = self.dataset.label_std
         return
@@ -123,10 +116,6 @@ class MyDataLoader(DataLoader):
         test_indices = indices[train_indice:test_indice]
         dataset_copy = copy.deepcopy(self.dataset)
         test_subset = Subset(dataset_copy, test_indices)
-        # normalize the factors
-        # test_subset_factors_norm = test_subset.dataset.data_origin[train_indice:test_indice, :-3]
-        # test_subset_factors_norm = (test_subset_factors_norm - self.factor_mean) / (self.factor_std + 1e-8)
-        # test_subset.dataset.data_origin[train_indice:test_indice, :-3] = test_subset_factors_norm
         # normalize the targets
         test_subset_labels_norm = test_subset.dataset.data_origin[train_indice:test_indice, -3:]
         test_subset_labels_norm = (test_subset_labels_norm - self.label_mean) / (self.label_std + 1e-8)
