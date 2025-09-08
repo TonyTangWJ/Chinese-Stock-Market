@@ -35,21 +35,10 @@ class MyDataset(Dataset):
         self.lowest_return = self.data_origin[idx, -2]
         self.close_return = self.data_origin[idx, -1]
         return self.factor, self.highest_return, self.lowest_return, self.close_return
-    
-    # def get_factors_norm_params(self, train_size):
-    #     train_indice = int(len(self.data_origin) * train_size)
-    #     train_data = self.data_origin[:train_indice, :-3]
-    #     self.factor_min = train_data.min(dim=0, keepdim=True)[0]
-    #     self.factor_max = train_data.max(dim=0, keepdim=True)[0]
-    #     self.factor_mean = train_data.mean(dim=0, keepdim=True)
-    #     self.factor_std = train_data.std(dim=0, keepdim=True)
-    #     return
         
     def get_labels_norm_params(self, train_size):
         train_indice = int(len(self.data_origin) * train_size)
         train_data = self.data_origin[:train_indice, -3:]
-        # self.label_min = train_data.min(dim=0, keepdim=True)[0]
-        # self.label_max = train_data.max(dim=0, keepdim=True)[0]
         self.label_mean = train_data.mean(dim=0, keepdim=True)
         self.label_std = train_data.std(dim=0, keepdim=True)
         return
@@ -96,10 +85,6 @@ class MyDataLoader(DataLoader):
         train_indices = indices[:train_indice]
         dataset_copy = copy.deepcopy(self.dataset)
         train_subset = Subset(dataset_copy, train_indices)
-        # normalize the factors
-        # train_subset_factors_norm = train_subset.dataset.data_origin[:train_indice, :-3]
-        # train_subset_factors_norm = (train_subset_factors_norm - self.factor_mean) / (self.factor_std + 1e-8)
-        # train_subset.dataset.data_origin[:train_indice, :-3] = train_subset_factors_norm
         # normalize the targets
         train_subset_labels_norm = train_subset.dataset.data_origin[:train_indice, -3:]
         train_subset_labels_norm = (train_subset_labels_norm - self.label_mean) / (self.label_std + 1e-8)
