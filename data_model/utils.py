@@ -7,7 +7,7 @@ import numpy as np
 import math
 
 class LoadData():
-    def __init__(self, factor, label, batch_size=32, shuffle=False, num_workers=0, train_size=0.5, test_size=0.1):
+    def __init__(self, factor, label, batch_size=32, shuffle=True, num_workers=0, train_size=0.5, test_size=0.1):
         self.dataset = MyDataset(factor, label)
         self.dataloader = MyDataLoader(self.dataset, 
                                        batch_size=batch_size, 
