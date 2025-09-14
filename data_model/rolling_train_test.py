@@ -131,7 +131,7 @@ class RollingTrainTest:
 
             # 使用月度数据计算风险指标
             risk_metrics = RiskMetrics(risk_free_rate=0.01, data_frequency=data_frequency)
-            metrics = risk_metrics.calculate_metrics(all_returns)
+            metrics = risk_metrics.calculate_metrics(period_returns)
             
             # 保存到CSV
             file_path = '../CSV_final/profit.csv'
@@ -197,7 +197,7 @@ class RollingTrainTest:
 
             # 使用月度数据计算风险指标
             risk_metrics = RiskMetrics(risk_free_rate=0.01, data_frequency=data_frequency)
-            metrics = risk_metrics.calculate_metrics(all_returns)
+            metrics = risk_metrics.calculate_metrics(period_returns)
             
             # 保存到CSV
             os.makedirs('CSV_final', exist_ok=True)
