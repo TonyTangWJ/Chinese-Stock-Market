@@ -105,5 +105,6 @@ class MyDataLoader(DataLoader):
         test_subset_labels_norm = test_subset.dataset.data_origin[train_indice:test_indice, -3:]
         test_subset_labels_norm = (test_subset_labels_norm - self.label_mean) / (self.label_std + 1e-8)
         test_subset.dataset.data_origin[train_indice:test_indice, -3:] = test_subset_labels_norm
-        return DataLoader(test_subset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers)
+        # return DataLoader(test_subset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers)
+        return DataLoader(test_subset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
 
