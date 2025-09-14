@@ -52,18 +52,22 @@ class RiskMetrics:
         # 剔除return为0的值
         returns = np.array(returns)
         returns = returns[returns != 0]
+        no_percent_returns = returns / 100  # 转换为小数形式
 
         # 基础统计
+        no_percent_mean_return = np.mean(no_percent_returns)
+        no_percent_std_return = np.std(no_percent_returns)
         mean_return = np.mean(returns)
         std_return = np.std(returns)
-        
+
         # 年化指标
+        no_percent_annualized_return = no_percent_mean_return * self.periods_per_year
+        no_percent_annualized_volatility = no_percent_std_return * np.sqrt(self.periods_per_year)
         annualized_return = mean_return * self.periods_per_year
-        annualized_volatility = std_return * np.sqrt(self.periods_per_year)
-        
+
         # 夏普比率
-        if annualized_volatility > 0:
-            sharpe_ratio = (annualized_return - self.risk_free_rate) / annualized_volatility
+        if no_percent_annualized_volatility > 0:
+            sharpe_ratio = (no_percent_annualized_return - self.risk_free_rate) / no_percent_annualized_volatility
         else:
             sharpe_ratio = 0
         
@@ -80,7 +84,7 @@ class RiskMetrics:
             'mean_return': mean_return,
             'std_return': std_return,
             'annualized_return': annualized_return,
-            'annualized_volatility': annualized_volatility,
+            'annualized_volatility': no_percent_annualized_volatility,
             'sharpe_ratio': sharpe_ratio,
             'max_drawdown': max_drawdown,
             'win_rate': win_rate,

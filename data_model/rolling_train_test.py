@@ -131,18 +131,18 @@ class RollingTrainTest:
 
             # 使用月度数据计算风险指标
             risk_metrics = RiskMetrics(risk_free_rate=0.01, data_frequency=data_frequency)
-            metrics = risk_metrics.calculate_metrics(all_returns)
+            metrics = risk_metrics.calculate_metrics(period_returns)
             
             # 保存到CSV
             file_path = '../CSV_final/profit.csv'
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('Time,model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,max_drawdown,win_rate\n')
+                    f.write('Time,model_name,mean_return,std_return,sharpe_ratio,annualized_return,max_drawdown,win_rate\n')
                 if self.count == 0:
                     f.write(f'{self.predictability_name}\n')
-                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
-            
+                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["std_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
+
         elif trade_mode == 2:
             pred_high = self.pred[:,-3]
             pred_high = np.where(pred_high > 0, pred_high, 0)
@@ -197,7 +197,7 @@ class RollingTrainTest:
 
             # 使用月度数据计算风险指标
             risk_metrics = RiskMetrics(risk_free_rate=0.01, data_frequency=data_frequency)
-            metrics = risk_metrics.calculate_metrics(all_returns)
+            metrics = risk_metrics.calculate_metrics(period_returns)
             
             # 保存到CSV
             os.makedirs('CSV_final', exist_ok=True)
@@ -205,11 +205,11 @@ class RollingTrainTest:
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('Time,model_name,mean_return,sharpe_ratio,annualized_return,annualized_volatility,max_drawdown,win_rate\n')
+                    f.write('Time,model_name,mean_return,std_return,sharpe_ratio,annualized_return,max_drawdown,win_rate\n')
                 if self.count == 0:
                     f.write(f'{self.predictability_name}\n')
-                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
-        
+                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["std_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["annualized_return"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
+
         self.Return = round(metrics["mean_return"],4)
         self.SR = round(metrics["sharpe_ratio"],4)
         return 
