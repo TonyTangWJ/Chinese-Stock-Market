@@ -388,17 +388,12 @@ class NN(nn.Module):
         if layer == 1:
             self.layers = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
-                nn.Linear(input_dim, output_dim)
-            )
-        elif layer == 2:
-            self.layers = nn.Sequential(
-                nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.3),
                 nn.Linear(32, output_dim)
             )
-        elif layer == 3:
+        elif layer == 2:
             self.layers = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
@@ -409,7 +404,7 @@ class NN(nn.Module):
                 nn.LeakyReLU(0.3),
                 nn.Linear(16, output_dim)
             )
-        elif layer == 4:
+        elif layer == 3:
             self.layers = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
@@ -423,7 +418,7 @@ class NN(nn.Module):
                 nn.LeakyReLU(0.3),
                 nn.Linear(8, output_dim)
             )
-        elif layer == 5:
+        elif layer == 4:
             self.layers = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
@@ -439,6 +434,26 @@ class NN(nn.Module):
                 nn.BatchNorm1d(4),
                 nn.LeakyReLU(0.3),
                 nn.Linear(4, output_dim)
+            )
+        elif layer == 5:
+            self.output_layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
+                nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
+                nn.LeakyReLU(0.3),
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
+                nn.LeakyReLU(0.3),
+                nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
+                nn.LeakyReLU(0.3),
+                nn.Linear(8, 4),
+                nn.BatchNorm1d(4),
+                nn.LeakyReLU(0.3),
+                nn.Linear(4, 2),
+                nn.BatchNorm1d(2),
+                nn.LeakyReLU(0.3),
+                nn.Linear(2, output_dim)
             )
         else:
             raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
@@ -1025,12 +1040,8 @@ class K_Means_NN(nn.Module):
 
     def _create_network(self, input_dim, output_dim, layer):
         """为每个聚类创建独立的神经网络 - 修复：返回创建的网络"""
+
         if layer == 1:
-            network = nn.Sequential(
-                nn.BatchNorm1d(input_dim),
-                nn.Linear(input_dim, output_dim)
-            )
-        elif layer == 2:
             network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
@@ -1038,7 +1049,7 @@ class K_Means_NN(nn.Module):
                 nn.LeakyReLU(0.3),
                 nn.Linear(32, output_dim)
             )
-        elif layer == 3:
+        elif layer == 2:
             network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
@@ -1049,7 +1060,7 @@ class K_Means_NN(nn.Module):
                 nn.LeakyReLU(0.3),
                 nn.Linear(16, output_dim)
             )
-        elif layer == 4:
+        elif layer == 3:
             network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
@@ -1063,7 +1074,7 @@ class K_Means_NN(nn.Module):
                 nn.LeakyReLU(0.3),
                 nn.Linear(8, output_dim)
             )
-        elif layer == 5:
+        elif layer == 4:
             network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
@@ -1079,6 +1090,26 @@ class K_Means_NN(nn.Module):
                 nn.BatchNorm1d(4),
                 nn.LeakyReLU(0.3),
                 nn.Linear(4, output_dim)
+            )
+        elif layer == 5:
+            self.output_layers = nn.Sequential(
+                nn.BatchNorm1d(input_dim),
+                nn.Linear(input_dim, 32),
+                nn.BatchNorm1d(32),
+                nn.LeakyReLU(0.3),
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
+                nn.LeakyReLU(0.3),
+                nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
+                nn.LeakyReLU(0.3),
+                nn.Linear(8, 4),
+                nn.BatchNorm1d(4),
+                nn.LeakyReLU(0.3),
+                nn.Linear(4, 2),
+                nn.BatchNorm1d(2),
+                nn.LeakyReLU(0.3),
+                nn.Linear(2, output_dim)
             )
         else:
             raise ValueError("Unsupported number of layers. Supported values are 1 to 5.")
@@ -2028,7 +2059,10 @@ class Encoder(nn.Module):
         if flayer == 1:
             self.output_layers = nn.Sequential(
                 nn.BatchNorm1d(d_model),
-                nn.Linear(d_model, output_dim)
+                nn.Linear(d_model, 32),
+                nn.BatchNorm1d(32),
+                nn.LeakyReLU(0.3),
+                nn.Linear(32, output_dim)
             )
         elif flayer == 2:
             self.output_layers = nn.Sequential(
@@ -2036,7 +2070,10 @@ class Encoder(nn.Module):
                 nn.Linear(d_model, 32),
                 nn.BatchNorm1d(32),
                 nn.LeakyReLU(0.3),
-                nn.Linear(32, output_dim)
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
+                nn.LeakyReLU(0.3),
+                nn.Linear(16, output_dim)
             )
         elif flayer == 3:
             self.output_layers = nn.Sequential(
@@ -2047,7 +2084,10 @@ class Encoder(nn.Module):
                 nn.Linear(32, 16),
                 nn.BatchNorm1d(16),
                 nn.LeakyReLU(0.3),
-                nn.Linear(16, output_dim)
+                nn.Linear(16, 8),
+                nn.BatchNorm1d(8),
+                nn.LeakyReLU(0.3),
+                nn.Linear(8, output_dim)
             )
         elif flayer == 4:
             self.output_layers = nn.Sequential(
@@ -2061,7 +2101,10 @@ class Encoder(nn.Module):
                 nn.Linear(16, 8),
                 nn.BatchNorm1d(8),
                 nn.LeakyReLU(0.3),
-                nn.Linear(8, output_dim)
+                nn.Linear(8, 4),
+                nn.BatchNorm1d(4),
+                nn.LeakyReLU(0.3),
+                nn.Linear(4, output_dim)
             )
         elif flayer == 5:
             self.output_layers = nn.Sequential(
@@ -2078,7 +2121,10 @@ class Encoder(nn.Module):
                 nn.Linear(8, 4),
                 nn.BatchNorm1d(4),
                 nn.LeakyReLU(0.3),
-                nn.Linear(4, output_dim)
+                nn.Linear(4, 2),
+                nn.BatchNorm1d(2),
+                nn.LeakyReLU(0.3),
+                nn.Linear(2, output_dim)
             )
         else:
             raise ValueError("Supported layers are 1 to 5.")

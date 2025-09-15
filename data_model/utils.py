@@ -72,12 +72,12 @@ class RiskMetrics:
             sharpe_ratio = 0
         
         # 最大回撤
-        cumulative_returns = np.cumprod(1 + returns/100) - 1 
-        peak = np.maximum.accumulate(cumulative_returns)
-        drawdown = (peak - cumulative_returns) / (peak + 1e-8)
-        max_drawdown = -np.max(drawdown)
+        nav = np.cumprod(1 + returns/100)
+        peak_nav = np.maximum.accumulate(nav)
+        drawdown = (peak_nav - nav) / peak_nav
+        max_drawdown = np.max(drawdown)
         
-        # 其他指标
+        # 胜率
         win_rate = np.sum(returns > 0) / len(returns)
         
         return {
