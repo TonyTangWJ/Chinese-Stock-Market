@@ -436,7 +436,7 @@ class NN(nn.Module):
                 nn.Linear(4, output_dim)
             )
         elif layer == 5:
-            self.output_layers = nn.Sequential(
+            self.layers = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
@@ -1092,7 +1092,7 @@ class K_Means_NN(nn.Module):
                 nn.Linear(4, output_dim)
             )
         elif layer == 5:
-            self.output_layers = nn.Sequential(
+            network = nn.Sequential(
                 nn.BatchNorm1d(input_dim),
                 nn.Linear(input_dim, 32),
                 nn.BatchNorm1d(32),
