@@ -138,10 +138,10 @@ class RollingTrainTest:
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('Time,model_name,mean_return,sharpe_ratio,std_return,annualized_return,max_drawdown,win_rate\n')
+                    f.write('Time,model_name,mean_return,sharpe_ratio,std_return,annualized_return,annualized_volatility,max_drawdown\n')
                 if self.count == 0:
                     f.write(f'{self.predictability_name}\n')
-                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["std_return"]:.4f},{metrics["annualized_return"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
+                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["std_return"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f}\n')
 
         elif trade_mode == 2:
             pred_high = self.pred[:,-3]
@@ -205,10 +205,10 @@ class RollingTrainTest:
             mode = 'a' if os.path.exists(file_path) else 'w'      
             with open(file_path, mode) as f:
                 if mode == 'w':
-                    f.write('Time,model_name,mean_return,sharpe_ratio,std_return,annualized_return,max_drawdown,win_rate\n')
+                    f.write('Time,model_name,mean_return,sharpe_ratio,std_return,annualized_return,annualized_volatility,max_drawdown\n')
                 if self.count == 0:
                     f.write(f'{self.predictability_name}\n')
-                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["std_return"]:.4f},{metrics["annualized_return"]:.4f},{metrics["max_drawdown"]:.4f},{metrics["win_rate"]:.4f}\n')
+                f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())},{self.model_name},{metrics["mean_return"]:.4f},{metrics["sharpe_ratio"]:.4f},{metrics["std_return"]:.4f},{metrics["annualized_return"]:.4f},{metrics["annualized_volatility"]:.4f},{metrics["max_drawdown"]:.4f}\n')
 
         self.Return = round(metrics["mean_return"],4)
         self.SR = round(metrics["sharpe_ratio"],4)

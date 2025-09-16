@@ -75,7 +75,7 @@ class RiskMetrics:
         nav = np.cumprod(1 + returns/100)
         peak_nav = np.maximum.accumulate(nav)
         drawdown = (peak_nav - nav) / peak_nav
-        max_drawdown = np.max(drawdown)
+        max_drawdown = np.max(drawdown) *100  # 转换为百分比形式
         
         # 胜率
         win_rate = np.sum(returns > 0) / len(returns)
@@ -84,7 +84,7 @@ class RiskMetrics:
             'mean_return': mean_return,
             'std_return': std_return,
             'annualized_return': annualized_return,
-            'annualized_volatility': no_percent_annualized_volatility,
+            'annualized_volatility': no_percent_annualized_volatility * 100,
             'sharpe_ratio': sharpe_ratio,
             'max_drawdown': max_drawdown,
             'win_rate': win_rate,

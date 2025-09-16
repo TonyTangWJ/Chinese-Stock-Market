@@ -84,7 +84,7 @@ class LinearRegression(nn.Module):
 
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
-                self._save_checkpoint(epoch)
+                # self._save_checkpoint(epoch)
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
@@ -278,7 +278,7 @@ class ElasticNet(nn.Module):
 
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
-                self._save_checkpoint(epoch)
+                # self._save_checkpoint(epoch)
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
@@ -547,7 +547,7 @@ class NN(nn.Module):
             # print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             # Save checkpoint every 10 epochs
             if (epoch + 1) % 10 == 0:
-                self._save_checkpoint(epoch)
+                # self._save_checkpoint(epoch)
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # if loss is not improving for 5 epochs, stop training
@@ -1355,7 +1355,7 @@ class K_Means_NN(nn.Module):
             
             # 每10个epoch保存checkpoint和打印信息
             if (epoch + 1) % 10 == 0:
-                self._save_checkpoint(epoch)
+                # self._save_checkpoint(epoch)
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
             
             # 早停机制
@@ -1692,7 +1692,7 @@ class CNN(nn.Module):
             
             # 每10个epoch保存checkpoint
             if (epoch + 1) % 10 == 0:
-                self._save_checkpoint(epoch)
+                # self._save_checkpoint(epoch)
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # 早停机制
@@ -2250,7 +2250,7 @@ class Encoder(nn.Module):
             
             # 每10个epoch保存checkpoint
             if (epoch + 1) % 10 == 0:
-                self._save_checkpoint(epoch)
+                # self._save_checkpoint(epoch)
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {train_loss:.4f}")
 
             # 早停机制
