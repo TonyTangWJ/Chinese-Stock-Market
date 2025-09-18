@@ -264,7 +264,7 @@ class get_data:
     # get the index monthly trading data and then store it into the database
     # data source: tushare
     def get_index_monthly_trading_data(self):
-        index_list = ['000001.SH','399001.SZ','399006.SZ']
+        index_list = ['000001.SH','399001.SZ','399006.SZ','399300.SZ']
         for ts_code in tqdm(index_list, desc="Collecting index monthly trading data", position = 0, colour='#FA6780'):
             data = self.pro.index_monthly(ts_code=ts_code, 
                                          start_date=self.start_date, 
