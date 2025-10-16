@@ -1,3 +1,2 @@
-use csm_pro;
-
-
+USE csm;
+SHOW CREATE VIEW target_data;

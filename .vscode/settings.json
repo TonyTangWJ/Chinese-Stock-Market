@@ -5,6 +5,7 @@
                 "authProtocol": "xprotocol",
                 "enableSsl": "Disabled"
             },
+            "ssh": "Disabled",
             "previewLimit": 50,
             "server": "localhost",
             "port": 33060,
@@ -13,7 +14,7 @@
             "connectionTimeout": 30,
             "username": "root",
             "database": "csm",
-            "password": "Password123"
+            "password": "19990509Twj#"
         }
     ],
     "notebook.defaultFormatter": null,
